@@ -1,19 +1,16 @@
 #!/bin/bash
 
-#scp -i .ssh/hw-re-keypair.pem .ssh/id_rsa.pub root@172.22.106.14:/tmp ; ssh root@172.22.106.14 "cat /tmp/id_rsa.pub >> /root/.ssh/authorized_keys"
-
-
 workers=(\
-172.22.111.144 \
-172.22.111.136 \
-172.22.111.1 \
-172.22.111.0 \
-172.22.110.97 \
-172.22.110.89 \
-172.22.110.88 \ 
-172.22.110.87 \
-172.22.110.82 \
-172.22.110.46 \
+10.64.16.84 \
+10.64.16.95 \
+10.64.16.48 \
+10.64.16.82 \
+10.64.16.77 \
+10.64.16.52 \
+10.64.16.47 \
+10.64.16.62 \
+10.64.16.76 \
+10.64.16.73
 )
 
 submitKey(){
@@ -28,7 +25,7 @@ submitKey(){
 createUser(){
         for worker in ${workers[@]}; do
                 echo "creating user hiveptest on $worker"
-                ssh root@${worker} "useradd -m -U -d /home/hiveptest hiveptest" && ssh root@${worker} "echo hiveptest:hiveptest| chpasswd"
+                ssh -i ~/.ssh/hw-re-keypair.pem root@${worker} "useradd -m -U -d /home/hiveptest hiveptest" && ssh -i ~/.ssh/hw-re-keypair.pem root@${worker} "echo hiveptest:hiveptest| chpasswd"
                 [ "$?" == 0 ] && echo "User hiveptest created on $worker..."
         done
 }
@@ -36,8 +33,8 @@ createUser(){
 submituserKey(){
         for worker in ${workers[@]}; do
                 echo "Submitting to $worker"
-                if ( scp /home/hiveptest/.ssh/hive-ptest-user-key.pub root@${worker}:/tmp ); then
-                        ssh root@${worker} \
+                if ( scp -i ~/.ssh/hw-re-keypair.pem /home/hiveptest/.ssh/hive-ptest-user-key.pub root@${worker}:/tmp ); then
+                        ssh -i ~/.ssh/hw-re-keypair.pem root@${worker} \
                         "mkdir /home/hiveptest/.ssh ; \
                         chmod 700 /home/hiveptest/.ssh ; \
                         cat /tmp/hive-ptest-user-key.pub >> /home/hiveptest/.ssh/authorized_keys ; \
@@ -68,37 +65,50 @@ pushConf(){
                 ssh -i /home/hiveptest/.ssh/hive-ptest-user-key hiveptest@${worker} \
                 "[ -d /home/hiveptest/.m2 ] || mkdir /home/hiveptest/.m2 ; \
                 cp -f /tmp/settings.xml /home/hiveptest/.m2"
-                #echo "export JAVA_HOME="/home/hiveptest/tools/jdk7/latest"" >> /home/hiveptest/.bashrc ; \
-                #echo "export MVN_HOME="/home/hiveptest/tools/maven/latest"" >> /home/hiveptest/.bashrc ; \
-                #echo "" >> /home/hiveptest/.bashrc ; \
-                #echo "export PATH="$JAVA_HOME/bin:$MVN_HOME/bin:$PATH"" >> /home/hiveptest/.bashrc"
                 else
                         echo "Configurations copy failed!!!"
                 fi
-                exit 0
         done
 }
 
-updateLimit(){
+updateBashrc(){
 	for worker in ${workers[@]}; do
-        	echo "Pushing conf to $worker"
-		ssh root@${worker} \
-		"echo -e 'hiveptest\tsoft\tnproc\t376907' >> /etc/security/limits.conf ; \
-		 echo -e 'hiveptest\thard\tnproc\t376907' >> /etc/security/limits.conf"
-	done	
+		echo "Updating bashrc on $worker"
+		if ( scp -i /home/hiveptest/.ssh/hive-ptest-user-key /root/rc hiveptest@${worker}:/tmp > /dev/null 2>&1 ); then
+			ssh -i /home/hiveptest/.ssh/hive-ptest-user-key hiveptest@${worker} \
+			"cat /tmp/rc >> /home/hiveptest/.bashrc"
+		fi
+	done
+}
+
+updateLimit(){
+    for worker in ${workers[@]}; do
+            echo "Pushing conf to $worker"
+        	ssh -i ~/.ssh/hw-re-keypair.pem root@${worker} \
+        	"echo -e 'hiveptest\tsoft\tnproc\t376907' >> /etc/security/limits.conf ; \
+         	echo -e 'hiveptest\thard\tnproc\t376907' >> /etc/security/limits.conf"
+    done
 }
 
 addSwap() {
-	for worker in ${workers[@]}; do
-        	echo "Pushing swap to $worker"
-		ssh root@${worker} \
-		"fallocate -l 64G /swapfile ; \
-		 chmod 600 /swapfile ; \
-		 mkswap /swapfile ; \
-		 swapon /swapfile ; \
-		 echo -e '/swapfile\t\tswap\t\t\tswap\tdefaults\t0 0' >> /etc/fstab;"
-	done	
-	
+    for worker in ${workers[@]}; do
+         echo "Pushing swap to $worker"
+         ssh -i ~/.ssh/hw-re-keypair.pem root@${worker} \
+	"test -f /swapfile || rm -f /swapfile ; \
+         dd if=/dev/zero of=/swapfile count=4096 bs=2MiB ; \
+         chmod 600 /swapfile ; \
+         mkswap /swapfile ; \
+         swapon /swapfile ; "
+         echo -e '/swapfile\t\tswap\t\t\tswap\tdefaults\t0 0' >> /etc/fstab;"
+    done
+}
+
+cleanHome(){
+	    for worker in ${workers[@]}; do
+            	echo "Cleaning $worker"
+       		 ssh -i ~/.ssh/hw-re-keypair.pem root@${worker} \
+		"rm -rf /home/hiveptest/{apache-tomcat-7.0.41,build-tools-new.tar.gz,template_profile_autosync,test-properties}"
+	done
 }
 
 #main
@@ -107,6 +117,8 @@ addSwap() {
 #submituserKey
 #pushTools
 #pushConf
+#updateBashrc
 #pushJdk
 #updateLimit
-addSwap
+#addSwap
+#cleanHome
