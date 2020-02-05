@@ -82,6 +82,7 @@ updateBashrc(){
 }
 
 updateLimit(){
+    # change need restart of the node.
     for worker in ${workers[@]}; do
             echo "Pushing conf to $worker"
         	ssh -i ~/.ssh/hw-re-keypair.pem root@${worker} \
