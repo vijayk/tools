@@ -1,0 +1,2134 @@
+#[component-name]
+# HDP_VERSION -> Distro.ini
+# git_url -> hdp-base.json
+# branch -> hdp-base.json
+# comp_version -> hdp-base.json
+# BUILD_NUMBER -> jenkins Env
+# package_count. this file -> overriden by platfom_components.txt
+# build_tool -> this file
+# install.cmd -> this file
+# deploy.cmd  -> this file
+# UnitTest Command -> this file
+# depends_on -> hdp-base.json
+# text-replace, xml-replace, xpath-replace - for replacing versions in component code
+
+[accumulo]
+build_tool = maven
+# Maven build defaults to building with -Dhadoop.profile=3 so we do not need to explicit set that
+# currently we are using maven 3.3.9 in CDPD builds and have to exclude the accumulo maven-plugin build ::due to bug: https://issues.apache.org/jira/browse/MPLUGIN-312
+COMMON_BUILD_OPTS = "${MVN_CMD} -pl '!maven-plugin' -Dfindbugs.skip -Dcheckstyle.skip -Pdocs,assemble -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL} -Dreponame=${NEXUS_DEPLOY_REPO_ID} ${MAVEN_TEST_OPTS} ${NPM_ARGS}"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${accumulo_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} -DskipTests deploy
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = assemble/target/accumulo-${accumulo_jar_version}-bin.tar.gz
+        artifact_2 = server/native/target/accumulo-native-${accumulo_jar_version}/accumulo-native-${accumulo_jar_version}/libaccumulo.so
+        artifact_3 = test.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -DskipTests install -Dmaven.javadoc.skip=true
+        cmd_2 = "tar --exclude-vcs -zcf test.tar.gz test"
+
+    [[test_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean package -Dsurefire.timeout=2400
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean cobertura:cobertura -Dsurefire.timeout=2400
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -DskipTests install -Dmaven.javadoc.skip=true
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=accumulo-${accumulo_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=accumulo-${accumulo_jar_version} -Dfortify.sca.verbose=true -Dfortify.sca.translateLogfile=translate.log -Dfortify.sca.debug=true ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b accumulo-${accumulo_jar_version} ${FORTIFY_SCAN_LARGE_MEMORY} -scan -f accumulo-${accumulo_jar_version}.fpr
+
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version' , ${hadoop_jar_version}, pom.xml
+        REPLACE_2 = 'zookeeper.version' , ${zookeeper_jar_version}, pom.xml
+
+# TODO (sriharsha) figure out hbase, solr version from pom.xml , BUG-58027 cached apache archive tar to s3.
+# https://github.com/hortonworks/build-support/commit/6a258920f96f89aa7bec590734db69cf878c42a9
+[atlas]
+build_tool = maven
+atlas_alternate_name = apache-atlas
+hbase_pkg_version = 1.1.2
+solr_pkg_version = 5.1.0
+kafka_scala_version = 2.12
+COMMON_BUILD_OPTS = "${MVN352_CMD} -Dfindbugs.skip=true -Pgpg -DskipDocs=true -Dhadoop.version=${hadoop_jar_version} -Dzookeeper.version=${zookeeper_jar_version} -Dinternal.maven.repository=${NEXUS_REPO_URL} -DStagingId=${NEXUS_DEPLOY_REPO_ID} -DStagingUrl=${NEXUS_REPO_URL} -Dhbase.tar=http://public-repo-1.hortonworks.com/ARTIFACTS/dist/hbase/${hbase_pkg_version}/hbase-${hbase_pkg_version}-bin.tar.gz -Dsolr.tar=http://public-repo-1.hortonworks.com/ARTIFACTS/dist/lucene/solr/${solr_pkg_version}/solr-${solr_pkg_version}.tgz ${NPM_ARGS}"
+setversion_cmd = ${MVN352_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${atlas_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} -Pdist -DskipTests -DskipITs deploy assembly:assembly
+package_count = 3
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = distro/target/${atlas_alternate_name}-${atlas_jar_version}-bin.tar.gz
+        artifact_2 = distro/target/${atlas_alternate_name}-${atlas_jar_version}-hbase-hook.tar.gz
+        artifact_4 = distro/target/${atlas_alternate_name}-${atlas_jar_version}-sqoop-hook.tar.gz
+        artifact_5 = distro/target/${atlas_alternate_name}-${atlas_jar_version}-kafka-hook.tar.gz
+        artifact_6 = distro/target/${atlas_alternate_name}-${atlas_jar_version}-hive-hook.tar.gz
+        artifact_7 = distro/target/${atlas_alternate_name}-${atlas_jar_version}-server.tar.gz
+        artifact_8 = distro/target/${atlas_alternate_name}-${atlas_jar_version}-impala-hook.tar.gz
+        artifact_9 = distro/target/${atlas_alternate_name}-${atlas_jar_version}-aws-s3-extractor.tar.gz
+
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -Pdist -DskipTests -DskipITs install
+
+    [[test_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} --fail-at-end -Dsurefire.timeout=1200 -DfailIfNoTests=false test
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} --fail-at-end -Dsurefire.timeout=1200 -DfailIfNoTests=false cobertura:cobertura
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -Pdist -DskipTests -DskipITs install
+        cmd_2 = ${COMMON_BUILD_OPTS} -Pdist -DskipTests -DskipITs ${FORTIFY_ARGS} -Dfortify.sca.buildId=${atlas_alternate_name}-${atlas_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -Pdist -DskipTests -DskipITs ${FORTIFY_ARGS} -Dfortify.sca.buildId=${atlas_alternate_name}-${atlas_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b ${atlas_alternate_name}-${atlas_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f ${atlas_alternate_name}-${atlas_jar_version}.fpr
+
+    [[text-replace]]
+        REPLACE_1 = '0.8-incubating-SNAPSHOT', ${atlas_jar_version}, build-tools/pom.xml , regex_replace
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version' , ${hadoop_jar_version} , pom.xml
+        REPLACE_2 = 'hive.version' , ${hive_jar_version} , pom.xml
+        REPLACE_3 = 'calcite.version', ${calcite_jar_version} , pom.xml
+        REPLACE_4 = 'zookeeper.version' , ${zookeeper_jar_version} , pom.xml
+        REPLACE_5 = 'hbase.version' , ${hbase_jar_version} , pom.xml
+        REPLACE_6 = 'kafka.version' , ${kafka_jar_version} , pom.xml
+        REPLACE_7 = 'kafka.scala.binary.version' , ${kafka_scala_version} , pom.xml
+        #REPLACE_7 = 'curator.version', ${curator_jar_version} , pom.xml
+        #REPLACE_8 = 'jetty.version', ${cdpd_jetty_version} , pom.xml
+
+[avatica]
+build_tool = gradle
+no_package = True
+
+    [[install_cmd]]
+        cmd_1 = ./gradlew build publishToMavenLocal -x test -PgbnRepoUrl=${GBN_MVN_REPO} -Prelease=true
+
+    [[test_cmd]]
+        cmd_1 = ./gradlew test
+
+    [[text-replace]]
+        REPLACE_1 = "calcite.avatica.version=.*", calcite.avatica.version=${avatica_jar_version}, gradle.properties, regex_replace
+        REPLACE_2 = "nexusRepoUrl=.*", nexusRepoUrl=${NEXUS_PROXY_URL}, gradle.properties, regex_replace
+
+
+[avro]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${avro_jar_version}
+deploy_cmd = "${MVN_CMD} deploy -Drepo.id=${NEXUS_DEPLOY_REPO_ID} -Dinternal.maven.repo=${NEXUS_REPO_URL} -DskipITs -DskipTests"
+no_package = True
+
+    [[artifacts]]
+        artifact_1 = avro-distro-${avro_jar_version}-lang-java.tar.gz
+
+    [[install_cmd]]
+        cmd_0 = ${MVN_CMD} -N install
+        cmd_1 = ${MVN_CMD} -DskipTests -Dhadoop.version=2 -Pdist clean install javadoc:aggregate, lang/java
+        cmd_2 = ${MVN_CMD} -DskipTests -Dhadoop.version=2 site, lang/java/trevni/doc
+        cmd_3 = ${ANT_CMD} -Dforrest.home=${FORREST_HOME} , doc
+        cmd_4 = ${MVN_CMD} -N -P copy-artifacts antrun:run
+        cmd_5 = cp -f lang/java/ipc/target/avro-ipc-${avro_jar_version}-tests.jar dist/java
+        cmd_6 = tar -zcvf avro-distro-${avro_jar_version}-lang-java.tar.gz dist build
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_CMD} -DskipTests -Dhadoop.version=2 -Pdist clean install, lang/java
+        cmd_2 = ${MVN_CMD} -DskipTests -Dhadoop.version=2 -Pdist ${FORTIFY_ARGS} -Dfortify.sca.buildId=avro-${avro_jar_version} ${FORTIFY_CLEAN_CMD}, lang/java
+        cmd_3 = ${MVN_CMD} -DskipTests -Dhadoop.version=2 -Pdist ${FORTIFY_ARGS} -Dfortify.sca.buildId=avro-${avro_jar_version} ${FORTIFY_TRANSLATE_CMD}, lang/java
+        cmd_4 = sourceanalyzer -b avro-${avro_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f avro-${avro_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = ${MVN_CMD} test
+
+    [[text-replace]]
+        REPLACE_1 = ".+" , "${avro_jar_version}" , share/VERSION.txt , regex_replace
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop2.version', ${hadoop_jar_version}, lang/java/pom.xml
+        REPLACE_2 = 'thrift.version', ${cdpd_thrift_version}, lang/java/pom.xml
+        REPLACE_3 = 'jetty.version', ${cdpd_jetty_version}, lang/java/pom.xml
+
+[arrow]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${arrow_jar_version}, java
+deploy_cmd = "${MVN_CMD} deploy -Drepo.id=${NEXUS_DEPLOY_REPO_ID} -Dinternal.maven.repo=${NEXUS_REPO_URL} -DskipITs -DskipTests", java
+no_package = True
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} install, java
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_CMD} clean install, java
+        cmd_2 = ${MVN_CMD} ${FORTIFY_ARGS} -Dfortify.sca.buildId=arrow-${arrow_jar_version} ${FORTIFY_CLEAN_CMD}, java
+        cmd_3 = ${MVN_CMD} ${FORTIFY_ARGS} -Dfortify.sca.buildId=arrow-${arrow_jar_version} ${FORTIFY_TRANSLATE_CMD}, java
+        cmd_4 = sourceanalyzer -b arrow-${arrow_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f arrow-${arrow_jar_version}.fpr
+
+    [[xml-replace]]
+        REPLACE_1 = 'dep.hadoop.version' , ${hadoop_jar_version} , java/pom.xml
+
+[bigtop-jsvc]
+build_tool = ant
+    [[install_cmd]]
+        cmd_0 = mkdir -p ${TAR_DIR}/bigtop-jsvc , ${BASE_DIR}
+        cmd_1 = "wget -O ${TAR_DIR}/bigtop-jsvc/commons-daemon-${JSVC_VERSION}.tar.gz http://dev.hortonworks.com.s3.amazonaws.com/ARTIFACTS/dist/commons/daemon/source/commons-daemon-${JSVC_VERSION}-native-src.tar.gz" , ${BASE_DIR}
+
+[bigtop-utils]
+build_tool = bash
+    [[install_cmd]]
+        cmd_0 = mkdir -p ${TAR_DIR}/bigtop-utils , ${BASE_DIR}
+
+[calcite]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${calcite_jar_version}
+deploy_cmd = "${MVN_CMD} deploy -Drepo.id=${NEXUS_DEPLOY_REPO_ID} -Dinternal.maven.repo=${NEXUS_REPO_URL} -DskipITs -DskipTests"
+no_package = True
+FORTIFY_VERSION=17.20
+FORTIFY_SCA_HOME="${TOOLS_HOME}/fortify_sca_17.20"
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} install package -DskipITs -DskipTests ${NPM_ARGS}
+
+    [[test_cmd]]
+        cmd_1 = ${MVN_CMD} -DfailIfNoTests=false -Dmaven.test.failure.ignore=true test
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_CMD} -DskipITs -DskipTests install
+        cmd_2 = ${MVN_CMD} -DskipITs -DskipTests -Dfortify.sca.Xmx=48G -Dfortify.sca.Xss=400M -Dfortify.sca.sourceanalyzer.executable=${TOOLS_HOME}/fortify_sca_17.20/bin/sourceanalyzer -Dfortify.sca.source.version=1.8 -Dfortify.sca.cp=${MR_HOME}/repository -Dfortify.sca.buildId=calcite-${calcite_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${MVN_CMD} -DskipITs -DskipTests -Dfortify.sca.Xmx=48G -Dfortify.sca.Xss=400M -Dfortify.sca.sourceanalyzer.executable=${TOOLS_HOME}/fortify_sca_17.20/bin/sourceanalyzer -Dfortify.sca.source.version=1.8 -Dfortify.sca.cp=${MR_HOME}/repository -Dfortify.sca.verbose=true -Dfortify.sca.translateLogfile=translate.log -Dfortify.sca.debug=true -Dfortify.sca.buildId=calcite-${calcite_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b calcite-${calcite_jar_version} ${FORTIFY_SCAN_LARGE_MEMORY} -scan -f calcite-${calcite_jar_version}.fpr
+
+    [[xml-replace]]
+        REPLACE_1 = 'activeByDefault' , false , pom.xml
+        REPLACE_2 = 'avatica.version', ${avatica_jar_version}, pom.xml
+
+[cloudera-opdb-replication]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN352_CMD} ${NPM_ARGS} clean"
+setversion_cmd = ${MVN352_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${cloudera-opdb-replication_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} deploy -DskipTests=true -Dmaven.javadoc.skip=true
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = target/cloudera-opdb-replication-${cloudera-opdb-replication_jar_version}-bin.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install -DskipTests=true
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean install -DskipTests
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=cloudera-opdb-replication-${cloudera-opdb-replication_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=cloudera-opdb-replication-${cloudera-opdb-replication_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b cloudera-opdb-replication-${cloudera-opdb-replication_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f cloudera-opdb-replication-${cloudera-opdb-replication_jar_version}.fpr
+
+   [[test_cmd]]
+        cmd_1 = ${MVN352_CMD} --fail-never package
+
+    [[xml-replace]]
+        REPLACE_1 = 'hbase-thirdparty.version', '${hbase_thirdparty_jar_version}', pom.xml
+        REPLACE_2 = 'version.log4j2', '${cdpd_log4j2_version}', pom.xml
+        REPLACE_3 = 'hbase.version', ${hbase_jar_version}, pom.xml
+        REPLACE_4 = 'hadoop-three.version', ${hadoop_jar_version}, pom.xml
+
+[crunch]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${crunch_jar_version}
+JAVA_HOME=${TOOLS_HOME}/jdk8/jdk1.8.0_171
+no_package = True
+FORTIFY_VERSION=17.20
+FORTIFY_SCA_HOME="${TOOLS_HOME}/fortify_sca_17.20"
+
+    [[artifacts]]
+        artifact_1 = crunch-dist/target/apache-crunch-${crunch_jar_version}-bin.zip
+        artifact_2 = crunch-dist/target/apache-crunch-${crunch_jar_version}-bin.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} ${NPM_ARGS} -DskipTests -Dcrunch.platform=2 -Dslf4j.version=1.6.1 -Papache-release source:jar-no-fork javadoc:jar install
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_CMD} -DskipTests -Dcrunch.platform=2 -Dslf4j.version=1.6.1 -Papache-release install
+        cmd_2 = ${MVN_CMD} -DskipTests -Dcrunch.platform=2 -Dslf4j.version=1.6.1 -Papache-release -Dfortify.sca.Xmx=48G -Dfortify.sca.Xss=400M -Dfortify.sca.sourceanalyzer.executable=${TOOLS_HOME}/fortify_sca_17.20/bin/sourceanalyzer -Dfortify.sca.source.version=1.8 -Dfortify.sca.cp=${MR_HOME}/repository -Dfortify.sca.buildId=crunch-${crunch_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${MVN_CMD} -DskipTests -Dcrunch.platform=2 -Dslf4j.version=1.6.1 -Papache-release -Dfortify.sca.Xmx=48G -Dfortify.sca.Xss=400M -Dfortify.sca.sourceanalyzer.executable=${TOOLS_HOME}/fortify_sca_17.20/bin/sourceanalyzer -Dfortify.sca.source.version=1.8 -Dfortify.sca.cp=${MR_HOME}/repository -Dfortify.sca.buildId=crunch-${crunch_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b crunch-${crunch_jar_version} ${FORTIFY_SCAN_LARGE_MEMORY} -scan -f crunch-${crunch_jar_version}.fpr
+
+    [[text-replace]]
+        REPLACE_1 = '\$\{cdh.zookeeper.version\}', ${zookeeper_jar_version}, crunch-spark/pom.xml, regex_replace
+        REPLACE_2 = '\$\{cdh.hbase.version\}', ${hbase_jar_version}, crunch-spark/pom.xml, regex_replace
+
+    [[xml-replace]]
+        REPLACE_2 = 'commons-io.version' , '2.6', pom.xml
+        REPLACE_3 = 'commons-lang.version' , '2.6', pom.xml
+        REPLACE_4 = 'commons-codec.version' , '1.9', pom.xml
+        REPLACE_5 = 'commons-logging.version' , '1.1.3', pom.xml
+        REPLACE_6 = 'commons-cli.version' , '1.4', pom.xml
+        # REPLACE_7 = 'avro.version' , ${avro_jar_version}, pom.xml
+        REPLACE_8 = 'hive.version' , ${hive_jar_version}, pom.xml
+        REPLACE_9 = 'parquet.version' , ${parquet_jar_version}, pom.xml
+        REPLACE_10 = 'jackson.databind.version' , '2.9.5', pom.xml
+        REPLACE_11 = 'protobuf-java.version' , '2.5.0', pom.xml
+        REPLACE_12 = 'libthrift.version' , '0.9.3-1', pom.xml
+        REPLACE_13 = 'slf4j.version' , '1.7.25', pom.xml
+        REPLACE_14 = 'log4j.version' , '1.2.17', pom.xml
+        REPLACE_15 = 'mockito.version' , '1.10.19', pom.xml
+        REPLACE_16 = 'netty.version' , '4.1.17.Final', pom.xml
+        REPLACE_17 = 'hbase.version' , '${hbase_jar_version}', pom.xml
+        REPLACE_18 = 'scala.base.version' , '2.11', pom.xml
+        REPLACE_19 = 'scala.version' , '2.11.12', pom.xml
+        REPLACE_20 = 'spark.version' , ${spark_jar_version}, pom.xml
+        REPLACE_21 = 'jsr305.version' , '3.0.0', pom.xml
+        REPLACE_22 = 'zookeeper.version' , ${zookeeper_jar_version}, pom.xml
+        REPLACE_23 = 'jline.version', 2.12.1, pom.xml
+        REPLACE_24 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_25 = *[groupId='org.apache.zookeeper']/version , ${zookeeper_jar_version}, crunch-spark/pom.xml
+        REPLACE_26 = *[groupId='org.apache.hbase']/version , ${hbase_jar_version}, crunch-spark/pom.xml
+
+[curator]
+build_tool = maven
+COMMON_BUILD_OPTS ="${MVN_CMD} -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Dreponame=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL} -Drepo.maven.org=${NEXUS_PROXY_URL}"
+deploy_cmd = "${COMMON_BUILD_OPTS} deploy -DskipTests"
+package_count = 3
+coverage_tool = cobertura
+
+    [[setversion_cmd]]
+        cmd_1 = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${curator_jar_version}
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean install -DskipTests
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean install -DskipTests
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=curator-${curator_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=curator-${curator_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b curator-${curator_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f curator-${curator_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -Dsurefire.rerunFailingTestsCount=2 -DfailIfNoTests=false -fae test
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean cobertura:cobertura
+
+    [[xml-replace]]
+        REPLACE_1 = 'zookeeper-version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_2 = 'jackson-mapper-asl-version', ${cdpd_jackson_version}, pom.xml
+        REPLACE_3 = 'jackson-version', ${cdpd_jackson2_version}, pom.xml
+        REPLACE_4 = 'slf4j-version', ${cdpd_slf4j_version}, pom.xml
+
+[cdp_data_analytics_studio]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${cdp_data_analytics_studio_jar_version}
+COMMON_BUILD_OPTS = "${MVN_CMD} -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL} -Dreponame=${NEXUS_DEPLOY_REPO_ID} ${NPM_ARGS}"
+deploy_cmd = ${COMMON_BUILD_OPTS} -DskipTests -DskipITs deploy
+    [[artifacts]]
+        artifact_1 =  ${SOURCE_ROOT}/cdp_data_analytics_studio/web-app/target/cdp-data_analytics_studio-webapp-${cdp_data_analytics_studio_jar_version}.tar.gz
+        artifact_2 = ${SOURCE_ROOT}/cdp_data_analytics_studio/event-processor/target/cdp-data_analytics_studio-event-processor-${cdp_data_analytics_studio_jar_version}.tar.gz
+
+    [[install_cmd]]
+         cmd_1 = ${COMMON_BUILD_OPTS} -B clean install -Pcdp
+         cmd_2 = ${COMMON_BUILD_OPTS} -B -Pcdp -Pvalidate validate
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean install -DskipTests -Pcdp
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests -Pcdp ${FORTIFY_ARGS} -Dfortify.sca.buildId=cdp_data_analytics_studio-${cdp_data_analytics_studio_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests -Pcdp ${FORTIFY_ARGS} -Dfortify.sca.buildId=cdp_data_analytics_studio-${cdp_data_analytics_studio_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b cdp_data_analytics_studio-${cdp_data_analytics_studio_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f cdp_data_analytics_studio-${cdp_data_analytics_studio_jar_version}.fpr
+
+    [[xml-replace]]
+        REPLACE_1 = 'hdp3.hive.version', ${hive_jar_version}, pom.xml
+        REPLACE_2 = 'hdp3.hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_3 = 'hdp3.tez.version', ${tez_jar_version}, pom.xml
+        REPLACE_4 = 'hdp3.ranger.version', ${ranger_jar_version}, pom.xml
+
+    [[text-replace]]
+        REPLACE_1 = "https://registry.yarnpkg.com", "http://npm.infra.cloudera.com/api/npm/cloudera-npm", ui-app/yarn.lock, regex_replace
+
+[druid]
+build_tool = maven
+JAVA_HOME=${TOOLS_HOME}/jdk8/jdk1.8.0_171
+setversion_cmd = ${MVN333_CMD} org.codehaus.mojo:versions-maven-plugin:2.1:set -DgenerateBackupPoms=false -DnewVersion=${druid_jar_version}
+deploy_cmd = "${MVN333_CMD} deploy -Drepo.id=${NEXUS_DEPLOY_REPO_ID} -Dinternal.maven.repo=${NEXUS_REPO_URL} -DskipITs -DskipTests"
+COMMON_BUILD_OPTS = "${MVN333_CMD} -DskipTests -Ddruid.distribution.pulldeps.opts='-c org.apache.druid.extensions.contrib:dropwizard-emitter' -DrepoOrgUrl=${NEXUS_PROXY_URL} ${NPM_ARGS}"
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = distribution/target/apache-druid-${druid_jar_version}-bin.tar.gz
+
+    [[install_cmd]]
+        cmd_1 =  bash -c "PATH=${BASE_DIR}/buildvenv/bin:$PATH ${COMMON_BUILD_OPTS} clean install -Pdist -Pbundle-contrib-exts"
+
+    [[install_coverage_cmd]]
+        cmd_1 =  ${COMMON_BUILD_OPTS} clean
+
+    [[test_cmd]]
+        cmd_1 = ${MVN333_CMD} -DfailIfNoTests=false -Djava.net.preferIPv4Stack=true test
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${MVN333_CMD} -DfailIfNoTests=false -Djava.net.preferIPv4Stack=true cobertura:cobertura
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install
+        cmd_2 = ${COMMON_BUILD_OPTS} ${FORTIFY_ARGS} -Dfortify.sca.buildId=druid-${druid_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} ${FORTIFY_ARGS} -Dfortify.sca.buildId=druid-${druid_jar_version} -Dfortify.sca.verbose=true -Dfortify.sca.translateLogfile=translate.log -Dfortify.sca.debug=true ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b druid-${druid_jar_version} ${FORTIFY_SCAN_LARGE_MEMORY} -scan -f druid-${druid_jar_version}.fpr
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.compile.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_2 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_3 = 'storage-api.version', ${storage_api_jar_version}, extensions-core/druid-bloom-filter/pom.xml
+        REPLACE_4 = 'avro.version', ${avro_jar_version}, pom.xml
+        REPLACE_5 = 'parquet.version', ${parquet_jar_version}, extensions-core/parquet-extensions/pom.xml
+        #REPLACE_6 = 'curator.version', ${curator_jar_version}, pom.xml
+        #REPLACE_7 = 'curator.test.version', ${curator_jar_version}, pom.xml
+        REPLACE_8 = 'jetty.version', ${cdpd_jetty_version}, pom.xml
+        REPLACE_9 = 'netty4.version', ${cdpd_netty4_version}, pom.xml
+
+    [[text-replace]]
+        REPLACE_1 = '"https://repo1.maven.org/maven2/"', '"https://repo1.maven.org/maven2/", "${NEXUS_PROXY_URL}", "${GBN_MVN_REPO}"', services/src/main/java/org/apache/druid/cli/PullDependencies.java, regex_replace
+        REPLACE_2 = '"org.apache.hadoop:hadoop-client:.*"', '"org.apache.hadoop:hadoop-client:${hadoop_jar_version}"', indexing-service/src/main/java/org/apache/druid/indexing/common/config/TaskConfig.java, regex_replace
+        REPLACE_3 = 'conf/druid', 'conf', examples/bin/node.sh, regex_replace
+        REPLACE_4 = 'var/druid/pids', '/var/run/druid', examples/bin/node.sh, regex_replace
+
+[gcs]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${gcs_jar_version}
+deploy_cmd = ${MVN_CMD} deploy -DskipITs -DskipTests -Psite -Dmaven.javadoc.skip=true
+package_count = 3
+replace_lkgb_version = ${cdh_latest_version}
+
+    [[artifacts]]
+        artifact_1 = gcs-${gcs_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_HOME}/bin/mvn -B -U clean -Phadoop3 install -DskipTests
+        cmd_2 = rm -rf ../gcs-${gcs_jar_version}
+        cmd_3 = mkdir ../gcs-${gcs_jar_version}
+        cmd_4 = cp -rpf . ../gcs-${gcs_jar_version}
+        cmd_5 = tar --exclude-vcs -czf gcs-${gcs_jar_version}.tar.gz ../gcs-${gcs_jar_version}
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_HOME}/bin/mvn -B -U clean -Phadoop3 install -DskipTests
+        cmd_2 = ${MVN_HOME}/bin/mvn -U -Phadoop3 -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=gcs-${gcs_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${MVN_HOME}/bin/mvn -U -Phadoop3 -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=gcs-${gcs_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b gcs-${gcs_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f gcs-${gcs_jar_version}.fpr
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.three.version' , ${hadoop_lkgb_jar_version} , pom.xml
+        REPLACE_2 = 'bigdataoss.version' , ${gcs_jar_version} , pom.xml
+
+
+[hadoop]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} -Drequire.snappy=true -Dbundle.snappy=true -Dsnappy.prefix=x -Dsnappy.lib=${snappylib} -Dbundle.zstd=true -Drequire.zstd=true -Dzstd.lib=${zlib} -Pyarn-ui -Pdist -Pnative -Dtar -Psrc -Pgpg -Drequire.openssl=true -Dmaven.javadoc.skip=true -Dhbase.profile=2.0 ${NPM_ARGS}"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${hadoop_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} -DskipTests -DskipITs deploy
+coverage_tool = cobertura
+FORTIFY_VERSION=17.20
+FORTIFY_SCA_HOME="${TOOLS_HOME}/fortify_sca_17.20"
+
+    [[artifacts]]
+        artifact_1 = hadoop-dist/target/hadoop-${hadoop_jar_version}.tar.gz
+        artifact_2 = hadoop-client-modules/hadoop-client/target/hadoop-client-${hadoop_jar_version}.tar.gz
+        artifact_3 = hadoop-hdfs-project/hadoop-hdfs/target/hadoop-hdfs-${hadoop_jar_version}.tar.gz
+        artifact_4 = hadoop-hdfs-project/hadoop-hdfs-native-client/target/main/native/fuse-dfs/fuse_dfs
+
+    [[download_modules]]
+        cmd_1 = ${cdh_S3_DEV_LOC}/tars/isa_l/isal-${isa_l_jar_version}.tar.gz, ${TMP_PACKAGES_DIR}/isal-${isa_l_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = tar -zxf ${TMP_PACKAGES_DIR}/isal-${isa_l_jar_version}.tar.gz -C ${TMP_PACKAGES_DIR}
+        cmd_2 = ${COMMON_BUILD_OPTS} -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} -Dcontainer-executor.additional_cflags='-std=c90' -DskipTests -DskipITs -Drequire.isal -Disal.lib=${TMP_PACKAGES_DIR}/isal-${isa_l_jar_version}/lib install
+        cmd_3 = ${COMMON_BUILD_OPTS} -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} -DskipTests -DskipITs site:site
+
+    [[fortify_cmd]]
+        cmd_1 = tar -zxf ${TMP_PACKAGES_DIR}/isal-${isa_l_jar_version}.tar.gz -C ${TMP_PACKAGES_DIR}
+        cmd_2 = ${COMMON_BUILD_OPTS} -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} -Dcontainer-executor.additional_cflags='-std=c90' -DskipTests -DskipITs -Drequire.isal -Disal.lib=${TMP_PACKAGES_DIR}/isal-${isa_l_jar_version}/lib install
+        cmd_3 = ${COMMON_BUILD_OPTS} -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} -Dcontainer-executor.additional_cflags='-std=c90' -DskipTests -DskipITs -Drequire.isal -Disal.lib=${TMP_PACKAGES_DIR}/isal-${isa_l_jar_version}/lib -Dfortify.sca.Xmx=48G -Dfortify.sca.Xss=400M -Dfortify.sca.sourceanalyzer.executable=${TOOLS_HOME}/fortify_sca_17.20/bin/sourceanalyzer -Dfortify.sca.source.version=1.8 -Dfortify.sca.cp=${MR_HOME}/repository -Dfortify.sca.buildId=hadoop-${hadoop_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_4 = ${COMMON_BUILD_OPTS} -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} -Dcontainer-executor.additional_cflags='-std=c90' -DskipTests -DskipITs -Drequire.isal -Disal.lib=${TMP_PACKAGES_DIR}/isal-${isa_l_jar_version}/lib -Dfortify.sca.Xmx=48G -Dfortify.sca.Xss=400M -Dfortify.sca.sourceanalyzer.executable=${TOOLS_HOME}/fortify_sca_17.20/bin/sourceanalyzer -Dfortify.sca.source.version=1.8 -Dfortify.sca.cp=${MR_HOME}/repository -Dfortify.sca.buildId=hadoop-${hadoop_jar_version} -Dfortify.sca.verbose=true -Dfortify.sca.translateLogfile=translate.log -Dfortify.sca.debug=true ${FORTIFY_TRANSLATE_CMD}
+    	cmd_5 = sourceanalyzer -b hadoop-${hadoop_jar_version} ${FORTIFY_SCAN_LARGE_MEMORY} -scan -f hadoop-${hadoop_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = ${MVN_CMD} test
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${MVN_CMD} cobertura:cobertura
+
+    [[text-replace]]
+        REPLACE_1 = "\$\{cdh.logredactor.version\}", "2.0.7", hadoop-common-project/hadoop-common/pom.xml, regex_replace
+        REPLACE_2 = "https://registry.yarnpkg.com", "http://npm.infra.cloudera.com/api/npm/cloudera-npm", hadoop-yarn-project/hadoop-yarn/hadoop-yarn-ui/src/main/webapp/yarn.lock, regex_replace
+
+    [[xml-replace]]
+        REPLACE_1 = 'forkedProcessTimeoutInSeconds', '1800' , hadoop-project/pom.xml
+        REPLACE_2 = 'forkedProcessTimeoutInSeconds', '1800' , hadoop-tools/hadoop-distcp/pom.xml
+        REPLACE_3 = 'argLine', '-Xms2048m -Xmx3072m -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError', hadoop-project/pom.xml
+        REPLACE_4 = 'argLine', '-Xms2048m -Xmx3072m -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError', hadoop-tools/hadoop-distcp/pom.xml
+        REPLACE_5 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_7 = 'gcs.version' , ${gcs_jar_version} , hadoop-project/pom.xml
+        REPLACE_8 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_9 = 'hadoop.assemblies.version', ${hadoop_jar_version}, hadoop-project/pom.xml
+        REPLACE_10 = 'knox.version', ${knox_lkgb_jar_version}, hadoop-project/pom.xml
+        REPLACE_11 = 'hbase.two.version', ${hbase_lkgb_jar_version}, hadoop-project/pom.xml
+        REPLACE_12 = 'avro.version', ${avro_lkgb_jar_version}, hadoop-project/pom.xml
+        REPLACE_13 = 'ranger.version', ${ranger_lkgb_jar_version}, hadoop-project/pom.xml
+        REPLACE_14 = 'curator.version', ${curator_jar_version} , hadoop-project/pom.xml
+        REPLACE_15 = 'commons-beanutils.version', ${cdpd_commons-beanutils_version}, hadoop-project/pom.xml
+        REPLACE_16 = 'commons-compress.version', ${cdpd_commons-compress_version}, hadoop-project/pom.xml
+        REPLACE_17 = 'commons-daemon.version', ${cdpd_commons-daemon_version}, hadoop-project/pom.xml
+        REPLACE_18 = 'commons-io.version', ${cdpd_commons-io_version}, hadoop-project/pom.xml
+        REPLACE_19 = 'commons-lang3.version', ${cdpd_commons-lang3_version}, hadoop-project/pom.xml
+        REPLACE_20 = 'gson.version', ${cdpd_gson_version}, hadoop-project/pom.xml
+        REPLACE_21 = 'jackson.version', ${cdpd_jackson_version}, hadoop-project/pom.xml
+        REPLACE_22 = 'jackson2.version', ${cdpd_jackson2_version}, hadoop-project/pom.xml
+        REPLACE_23 = 'jackson2.databind.version', ${cdpd_jackson2-databind_version}, hadoop-project/pom.xml
+        REPLACE_24 = 'jetty.version', ${cdpd_jetty_version}, hadoop-project/pom.xml
+        REPLACE_25 = 'kerby.version', ${cdpd_kerby_version}, hadoop-project/pom.xml
+        REPLACE_26 = 'netty3.version', ${cdpd_netty3_version}, hadoop-project/pom.xml
+        REPLACE_27 = 'netty4.version', ${cdpd_netty4_version}, hadoop-project/pom.xml
+        REPLACE_28 = 'protobuf.version', ${cdpd_protobuf2_version}, hadoop-project/pom.xml
+        REPLACE_29 = 're2j.version', ${cdpd_re2j_version}, hadoop-project/pom.xml
+        REPLACE_30 = 'slf4j.version', ${cdpd_slf4j_version}, hadoop-project/pom.xml
+
+        REPLACE_31 = *[artifactId='httpclient']/version , ${cdpd_httpclient_version}, hadoop-project/pom.xml
+        REPLACE_32 = *[artifactId='httpcore']/version , ${cdpd_httpcore_version}, hadoop-project/pom.xml
+        REPLACE_33 = 'log4j.version', ${cdpd_log4j_version}, hadoop-project/pom.xml
+        REPLACE_34 = 't9000-core.version', ${t9000_core_jar_version}, hadoop-project/pom.xml
+
+
+[ozone]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} clean install -Pdist -DskipTests -Dmaven.javadoc.skip=true ${NPM_ARGS}"
+deploy_cmd = ${COMMON_BUILD_OPTS} -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} -DskipTests -DskipITs deploy
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = hadoop-ozone/dist/target/hadoop-ozone-${ozone_jar_version}.tar.gz
+
+    [[setversion_cmd]]
+        cmd_1 = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${ozone_jar_version}
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -DskipTests -DskipITs -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL}
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -DskipTests -DskipITs -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests -DskipITs -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} ${FORTIFY_ARGS} -Dfortify.sca.buildId=ozone-${ozone_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_4 = ${COMMON_BUILD_OPTS} -DskipTests -DskipITs -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} ${FORTIFY_ARGS} -Dfortify.sca.buildId=ozone-${ozone_jar_version} -Dfortify.sca.verbose=true -Dfortify.sca.translateLogfile=translate.log -Dfortify.sca.debug=true ${FORTIFY_TRANSLATE_CMD}
+        cmd_5 = sourceanalyzer -b ozone-${ozone_jar_version} ${FORTIFY_SCAN_LARGE_MEMORY} -scan -f ozone-${ozone_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = ${MVN_CMD} test
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${MVN_CMD} cobertura:cobertura
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_2 = 'ozone.version' , ${ozone_jar_version} , pom.xml
+        REPLACE_3 = 'ratis.version' , ${ratis_jar_version} , pom.xml
+        REPLACE_4 = 'jetty.version', ${cdpd_jetty_version}, pom.xml
+        REPLACE_5 = 'log4j.version', ${cdpd_log4j_version}, pom.xml
+        REPLACE_6 = 'ratis.thirdparty.version', ${ratis-thirdparty_jar_version}, pom.xml
+
+[hadoop-lzo]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${hadoop-lzo_jar_version}
+
+    [[artifacts]]
+        artifact_1 = target/hadoop-lzo-${hadoop-lzo_jar_version}.tar.gz
+
+    [[install_cmd]]
+       cmd_1 = "${MVN_CMD} -Dversion=${hadoop-lzo_jar_version} -Dhadoop.version=${hadoop_jar_version} -Drepo.maven.org=${NEXUS_REPO_URL} -Dmvnrepo=${NEXUS_REPO_URL} clean install package -Dmaven.javadoc.skip=true ${NPM_ARGS}"
+       cmd_2 = "tar --exclude=native/Linux-amd64-64/src --exclude=native/Linux-amd64-64/.libs --exclude=native/Linux-amd64-64/impl --exclude=native/Linux-amd64-64/libgplcompression.la --exclude=native/Linux-amd64-64/Makefile --exclude=native/Linux-amd64-64/config.status --exclude=native/Linux-amd64-64/config.log --exclude=native/Linux-amd64-64/libtool -zvcf hadoop-lzo-${hadoop-lzo_jar_version}.tar.gz native hadoop-lzo-${hadoop-lzo_jar_version}.jar  hadoop-lzo-${hadoop-lzo_jar_version}-sources.jar" , target
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.current.version', ${hadoop_jar_version} , pom.xml
+
+[hbase]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL} -Dhadoop.profile=3.0 ${NPM_ARGS} clean"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${hbase_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} deploy -DskipTests=true -Dmaven.javadoc.skip=true
+coverage_tool = cobertura
+FORTIFY_VERSION=17.20
+FORTIFY_SCA_HOME="${TOOLS_HOME}/fortify_sca_17.20"
+
+    [[artifacts]]
+        artifact_1 = hbase-assembly/target/hbase-${hbase_jar_version}-bin.tar.gz
+        artifact_2 = hbase-thrift/src/main/resources/org/apache/hadoop/hbase/thrift/Hbase.thrift
+        artifact_3 = hbase-thrift/src/main/resources/org/apache/hadoop/hbase/thrift2/hbase.thrift
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install assembly:single -DskipTests=true
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install assembly:single -DskipTests=true
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests=true -Dfortify.sca.Xmx=48G -Dfortify.sca.Xss=400M -Dfortify.sca.sourceanalyzer.executable=${TOOLS_HOME}/fortify_sca_17.20/bin/sourceanalyzer -Dfortify.sca.source.version=1.8 -Dfortify.sca.cp=${MR_HOME}/repository -Dfortify.sca.buildId=hbase-${hbase_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests=true -Dfortify.sca.Xmx=48G -Dfortify.sca.Xss=400M -Dfortify.sca.sourceanalyzer.executable=${TOOLS_HOME}/fortify_sca_17.20/bin/sourceanalyzer -Dfortify.sca.source.version=1.8 -Dfortify.sca.cp=${MR_HOME}/repository -Dfortify.sca.buildId=hbase-${hbase_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b hbase-${hbase_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f hbase-${hbase_jar_version}.fpr
+
+    # "package" is the recommended lifecycle phase for running unit tests for Maven projects.
+    # Also, MAWO may choose to run UTs that span Maven modules. Without the fail-never option, the failure
+    # of a UT in an earlier module may preclude execution of the tests in a later module.
+   [[test_cmd]]
+        cmd_1 = ${MVN_CMD} --fail-never -Phadoop-3.0 package
+
+   [[test_coverage_cmd]]
+        cmd_1 = ${MVN_CMD} --fail-never -Phadoop-3.0 cobertura:cobertura
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop-one.version',${hadoop_jar_version}, pom.xml
+        REPLACE_2 = 'hadoop-two.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_3 = 'hadoop-three.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_4 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_5 = 'surefire.firstPartThreadCount', '1', pom.xml
+        REPLACE_6 = 'surefire.secondPartThreadCount', '1', pom.xml
+        REPLACE_7 = 'surefire.timeout', '7200', pom.xml
+        REPLACE_8 = 'activeByDefault' , 'false' , pom.xml
+        REPLACE_9 = 'hbase.version' , ${hbase_jar_version} , pom.xml
+        REPLACE_10 = 'spark.version' , ${spark_lkgb_jar_version} , pom.xml
+        REPLACE_11 = 'avro.version', ${avro_jar_version}, pom.xml
+
+        REPLACE_12 = 'commons-io.version', ${cdpd_commons-io_version}, pom.xml
+        REPLACE_13 = 'commons-lang3.version', ${cdpd_commons-lang3_version}, pom.xml
+        REPLACE_14 = 'curator.version', ${curator_jar_version}, pom.xml
+        REPLACE_15 = 'hbase-thirdparty.version', '${hbase_thirdparty_jar_version}', pom.xml
+        REPLACE_16 = 'httpclient.version', ${cdpd_httpclient_version}, pom.xml
+        REPLACE_17 = 'jackson.version', ${cdpd_jackson2_version}, pom.xml
+        REPLACE_18 = 'jackson.databind.version', ${cdpd_jackson2-databind_version}, pom.xml
+        REPLACE_19 = 'jetty.version', ${cdpd_jetty_version}, pom.xml
+        REPLACE_20 = 'jline.version', ${cdpd_jline_version}, pom.xml
+        REPLACE_21 = 'kerby.version', ${cdpd_kerby_version}, pom.xml
+        REPLACE_22 = 'log4j.version', ${cdpd_log4j_version}, pom.xml
+#        REPLACE_23 = 'netty.hadoop.version', ${cdpd_netty3_version}, pom.xml
+        REPLACE_24 = 'thrift.version', ${cdpd_thrift_version}, pom.xml
+        REPLACE_25 = 'slf4j.version', ${cdpd_slf4j_version}, pom.xml
+
+
+[hbase_connectors]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN352_CMD} -Dhadoop.profile=3.0 ${NPM_ARGS} clean"
+setversion_cmd = ${MVN352_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${hbase_connectors_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} deploy -DskipTests=true -Dmaven.javadoc.skip=true
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = hbase-connectors-assembly/target/hbase-connectors-assembly-${hbase_connectors_jar_version}-bin.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install -DskipTests=true
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install -DskipTests
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=hbase-connectors-${hbase_connectors_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=hbase-connectors-${hbase_connectors_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b hbase-connectors-${hbase_connectors_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f hbase-connectors-${hbase_connectors_jar_version}.fpr
+
+   [[test_cmd]]
+        cmd_1 = ${MVN352_CMD} --fail-never package
+
+    [[xml-replace]]
+        REPLACE_1 = 'hbase.version', '${hbase_jar_version}', pom.xml
+        REPLACE_2 = 'revision', assembly-${hbase_connectors_jar_version}, pom.xml
+        REPLACE_3 = 'hadoop-two.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_4 = 'hadoop-three.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_5 = 'avro.version', ${avro_jar_version}, pom.xml
+        REPLACE_6 = 'avro.version', ${avro_jar_version}, kafka/pom.xml
+        REPLACE_7 = 'kafka-clients.version', ${kafka_jar_version}, kafka/hbase-kafka-proxy/pom.xml
+
+        REPLACE_8 = 'curator.version', ${curator_jar_version}, kafka/hbase-kafka-proxy/pom.xml
+        REPLACE_9 = 'commons-io.version', ${cdpd_commons-io_version}, pom.xml
+        REPLACE_10 = 'commons-lang3.version', ${cdpd_commons-lang3_version}, pom.xml
+        REPLACE_11 = 'hbase-thirdparty.version', '${hbase_thirdparty_jar_version}', pom.xml
+        REPLACE_12 = 'hbase-thirdparty.version', '${hbase_thirdparty_jar_version}', spark/pom.xml
+#        REPLACE_13 = 'netty.hadoop.version', ${cdpd_netty3_version}, pom.xml
+        REPLACE_14 = 'scala.version', '2.11.12', spark/pom.xml
+        REPLACE_15 = 'spark.version', ${spark_jar_version} , spark/pom.xml
+        REPLACE_16 = 'spark.scala.binary.version', '2.11', spark/pom.xml
+        REPLACE_17 = 'slf4j.version', ${cdpd_slf4j_version}, pom.xml
+
+[hbase_filesystem]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN352_CMD} ${NPM_ARGS} clean"
+setversion_cmd = ${MVN352_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${hbase_filesystem_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} deploy -DskipTests=true -Dmaven.javadoc.skip=true
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = dist/target/hbase-filesystem-dist-${hbase_filesystem_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install -DskipTests=true
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean install -DskipTests
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=hbase-filesystem-${hbase_filesystem_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=hbase-filesystem-${hbase_filesystem_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b hbase-filesystem-${hbase_filesystem_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f hbase-filesystem-${hbase_filesystem_jar_version}.fpr
+
+   [[test_cmd]]
+        cmd_1 = ${MVN352_CMD} --fail-never package
+
+    [[xml-replace]]
+        REPLACE_1 = 'hbase.version', ${hbase_jar_version}, pom.xml
+        REPLACE_2 = 'hadoop.version',${hadoop_jar_version}, pom.xml
+        REPLACE_3 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+
+        REPLACE_4 = 'commons-io.version', ${cdpd_commons-io_version}, pom.xml
+        REPLACE_5 = 'commons-lang3.version', ${cdpd_commons-lang3_version}, pom.xml
+        REPLACE_6 = 'curator.version', ${curator_jar_version}, pom.xml
+        REPLACE_7 = 'hbase-thirdparty.version', '${hbase_thirdparty_jar_version}', pom.xml
+        REPLACE_8 = 'log4j.version', ${cdpd_log4j_version}, pom.xml
+        REPLACE_9 = 'slf4j.version', ${cdpd_slf4j_version}, pom.xml
+
+[hbase_thirdparty]
+build_tool = maven
+COMMON_BUILD_OPTS ="${MVN_CMD} -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Dreponame=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL} -Drepo.maven.org=${NEXUS_PROXY_URL}"
+deploy_cmd = "${COMMON_BUILD_OPTS} deploy -DskipTests"
+package_count = 4
+coverage_tool = cobertura
+
+    [[setversion_cmd]]
+        cmd_1 = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${hbase_thirdparty_jar_version}
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean install -DskipTests
+
+[hbase-solr]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${hbase-solr_jar_version}
+
+    [[artifacts]]
+
+    artifact_1 = hbase-indexer-dist/target/hbase-indexer-${hbase-solr_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} -pl . --also-make  -Dmaven.javadoc.skip=true -Dfindbugs.skip=true -DskipTests ${NPM_ARGS} clean install
+        cmd_2 = ${MVN_CMD} -Pdist -Dhbase.api=2.0 -DskipTests ${NPM_ARGS} install
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_CMD} -pl . --also-make  -Dmaven.javadoc.skip=true -Dfindbugs.skip=true -DskipTests clean install
+        cmd_2 = ${MVN_CMD} -Pdist -Dhbase.api=2.0 -DskipTests install
+        cmd_3 = ${MVN_CMD} ${FORTIFY_ARGS} -Dfortify.sca.buildId=hbase-indexer-${hbase-solr_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_4 = ${MVN_CMD} -pl . --also-make  -Dmaven.javadoc.skip=true -Dfindbugs.skip=true -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=hbase-indexer-${hbase-solr_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_5 = ${MVN_CMD} -Pdist -Dhbase.api=2.0 -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=hbase-indexer-${hbase-solr_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_6 = sourceanalyzer -b hbase-indexer-${hbase-solr_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f hbase-indexer-${hbase-solr_jar_version}.fpr
+
+   [[test_cmd]]
+        cmd_1 = ${MVN_CMD} -Dmaven.test.failure.ignore=true clean test
+
+    [[xml-replace]]
+        REPLACE_1 = 'version.solr', ${solr_jar_version}, pom.xml
+        REPLACE_2 = 'version.hbase', ${hbase_jar_version}, pom.xml
+        REPLACE_3 = 'version.hadoop', ${hadoop_jar_version}, pom.xml
+        REPLACE_4 = 'version.solr-security-util', ${solr_jar_version}, pom.xml
+        REPLACE_5 = 'version.search', ${search_jar_version}, pom.xml
+        REPLACE_6 = 'version.zookeeper', ${zookeeper_jar_version}, pom.xml
+
+        REPLACE_8 = 'version.joda-time', '${cdpd_joda-time_version}', pom.xml
+        REPLACE_9 = 'version.slf4j', '${cdpd_slf4j_version}', pom.xml
+        REPLACE_10 = 'version.jackson', '${cdpd_jackson_version}', pom.xml
+        REPLACE_11 = 'version.jackson-mapper-asl', '1.9.13-cloudera.1', pom.xml
+        REPLACE_12 = 'version.jackson-hadoop', '2.10.0', pom.xml
+        REPLACE_13 = 'version.jetty', '${cdpd_jetty_version}', pom.xml
+        REPLACE_14 = 'version.httpclient', '${cdpd_httpclient_version}', pom.xml
+        REPLACE_15 = 'version.httpcore', '${cdpd_httpcore_version}', pom.xml
+        REPLACE_16 = 'version.jersey', '1.19', pom.xml
+        REPLACE_17 = 'version.jaxb-api', '2.2.11', pom.xml
+        REPLACE_18 = 'version.netty', '${cdpd_netty4_version}', pom.xml
+        REPLACE_19 = 'version.netty.hadoop', '${cdpd_netty3_version}', pom.xml
+        REPLACE_20 = 'version.surefire.plugin', '2.20', pom.xml
+        REPLACE_21 = 'version.commons.beanutils', '${cdpd_commons-beanutils_version}', pom.xml
+        REPLACE_22 = 'version.commons.cli', '1.2', pom.xml
+        REPLACE_23 = 'version.commons.codec', '${cdpd_commons-codec_version}', pom.xml
+        REPLACE_24 = 'version.commons.collections', '${cdpd_commons-collections_version}', pom.xml
+        REPLACE_25 = 'version.commons.compress', '${cdpd_commons-compress_version}', pom.xml
+        REPLACE_26 = 'version.commons.daemon', '${cdpd_commons-daemon_version}', pom.xml
+        REPLACE_27 = 'version.commons.io', '${cdpd_commons-io_version}', pom.xml
+        REPLACE_28 = 'version.commons.lang3', '${cdpd_commons-lang3_version}', pom.xml
+        REPLACE_29 = 'version.curator', '${curator_jar_version}', pom.xml
+        REPLACE_30 = 'version.gson', '${cdpd_gson_version}', pom.xml
+        REPLACE_31 = 'version.jline', '${cdpd_jline_version}', pom.xml
+        REPLACE_32 = 'version.kerby', '${cdpd_kerby_version}', pom.xml
+        REPLACE_34 = 'version.log4j2', '${cdpd_log4j2_version}', pom.xml
+        REPLACE_35 = 'version.log4j', '${cdpd_log4j_version}', pom.xml
+        REPLACE_36 = 'version.protobuf2', '${cdpd_protobuf2_version}', pom.xml
+        REPLACE_37 = 'version.re2j', '${cdpd_re2j_version}', pom.xml
+        REPLACE_38 = 'version.thrift', '${cdpd_thrift_version}', pom.xml
+
+
+[storage_api]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} ${NPM_ARGS}"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${storage_api_jar_version} , storage-api
+deploy_cmd = "${COMMON_BUILD_OPTS} clean deploy -DskipTests" , storage-api
+
+    [[install_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} clean  install -DskipTests -Dmaven.javadoc.skip=true -Denforcer.skip=true" , storage-api
+
+    [[test_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} test-compile -Dmaven.test.failure.ignore=true" , storage-api
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+
+[oozie]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} -fae -Dhadoop.version=${hadoop_jar_version} -Dhive.version=${hive_jar_version} -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Dreponame=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL} -DdistMgmtReleaseUrl=${NEXUS_REPO_URL} -DmavenReleaseId=${NEXUS_DEPLOY_REPO_ID} ${NPM_ARGS} -Puber,cloud"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${oozie_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} deploy -DskipITs -DskipTests=true
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = distro/target/oozie-${oozie_jar_version}-distro.tar.gz
+        artifact_2 = LICENSE.txt
+        artifact_3 = NOTICE.txt
+        artifact_4 = README.md
+        artifact_5 = release-log.txt
+        artifact_6 = source-headers.txt
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean install assembly:single -DskipITs -DskipTests=true -DgenerateDocs
+
+    [[test_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} ${MAVEN_TEST_OPTS} -Djava.net.preferIPv4Stack=true test
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} ${MAVEN_TEST_OPTS} -Djava.net.preferIPv4Stack=true cobertura:cobertura
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -DskipITs -DskipTests clean install
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipITs -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=oozie-${oozie_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipITs -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=oozie-${oozie_jar_version} ${FORTIFY_TRANSLATE_CMD}
+    	cmd_4 = sourceanalyzer -b oozie-${oozie_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f oozie-${oozie_jar_version}.fpr
+
+    [[xml-replace]]
+        REPLACE_1 = 'hbase.version' , ${hbase_jar_version} , pom.xml
+        REPLACE_2 = 'hbaselib.version' , ${hbase_jar_version}.oozie-${oozie_jar_version} , pom.xml
+        REPLACE_3 = 'hcatalog.version' , ${hive_jar_version} , pom.xml
+        REPLACE_4 = 'sqoop.version' , ${sqoop_jar_version} , pom.xml
+        REPLACE_6 = 'hive.version' , ${hive_jar_version} , pom.xml
+        REPLACE_7 = 'tez.version' , ${tez_jar_version} , pom.xml
+        REPLACE_8 = 'hadoop.auth.version' , ${hadoop_jar_version} , pom.xml
+        REPLACE_9 = 'hadoopTwo.version' , ${hadoop_jar_version} , pom.xml
+        REPLACE_11 = 'activeByDefault' , 'false' , pom.xml
+        REPLACE_12 = 'hadoop.version' , ${hadoop_jar_version} , pom.xml
+        REPLACE_13 = 'spark.version' , ${spark_jar_version} , pom.xml
+        REPLACE_14 = 'gcs.version' , ${gcs_jar_version} , pom.xml
+        REPLACE_15 = 'spark.streaming.kafka.version' , ${spark_jar_version} , pom.xml
+        REPLACE_16 = 'spark.bagel.version' , ${spark_jar_version} , pom.xml
+        REPLACE_18 = 'avro.version' , ${avro_jar_version} , pom.xml
+        REPLACE_19 = 'parquet.version' , ${parquet_jar_version} , pom.xml
+        REPLACE_20 = 'spark.atlas.connector.version' , ${spark_atlas_connector_jar_version} , pom.xml
+        REPLACE_21 = 'curator.version', ${curator_jar_version}, pom.xml
+        REPLACE_22 = 'jetty.version', '${cdpd_jetty_version}', pom.xml
+        REPLACE_23 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_24 = 'orc.version', ${orc_jar_version}, pom.xml
+
+[orc]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} ${NPM_ARGS}"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${orc_jar_version} , java
+deploy_cmd = "${COMMON_BUILD_OPTS} clean deploy -DskipTests" , java
+
+    [[install_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} clean  install -DskipTests -Dmaven.javadoc.skip=true -Denforcer.skip=true" , java
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean  install -DskipTests -Dmaven.javadoc.skip=true -Denforcer.skip=true, java
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests -Dmaven.javadoc.skip=true -Denforcer.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=orc-${orc_jar_version} ${FORTIFY_CLEAN_CMD}, java
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests -Dmaven.javadoc.skip=true -Denforcer.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=orc-${orc_jar_version} ${FORTIFY_TRANSLATE_CMD}, java
+        cmd_4 = sourceanalyzer -b orc-${orc_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f orc-${orc_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} test -Dmaven.test.failure.ignore=true"
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_2 = 'storage-api.version', ${storage_api_jar_version}, pom.xml
+        REPLACE_3 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_4 = 'hadoop.version' , ${hadoop_jar_version} , pom.xml
+
+[hive]
+build_tool = maven
+hive_alternate_name = apache-hive
+hive_apache_base_maven_version = 1.2.1
+COMMON_BUILD_OPTS = "${MVN_CMD} -Dhadoop.mr.rev=23 -DskipSparkTests -Drepo.maven.org=${NEXUS_PROXY_URL} -Dtest.junit.output.format=xml -Dmvn.hadoop.profile=hadoop23 -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL} -Dmvnrepo=${NEXUS_PROXY_URL} ${NPM_ARGS}"
+deploy_cmd = "${COMMON_BUILD_OPTS} clean deploy -DskipTests -Phadoop-2,dist,sources"
+coverage_tool = cobertura
+FORTIFY_VERSION=17.20
+FORTIFY_SCA_HOME="${TOOLS_HOME}/fortify_sca_17.20"
+
+    [[artifacts]]
+        artifact_1 = packaging/target/${hive_alternate_name}-${hive_jar_version}-bin.tar.gz
+
+    [[setversion_cmd]]
+        cmd_1 = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${hive_jar_version}
+        cmd_2 = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${hive_jar_version} , storage-api
+        cmd_3 = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${hive_jar_version}, standalone-metastore
+        cmd_4 = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${hive_jar_version}, upgrade-acid
+
+    [[install_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} clean install -DskipTests -Pdist,sources -Dmaven.javadoc.skip=true -Denforcer.skip=true"
+
+    [[fortify_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} clean  install -DskipTests -Pdist,sources -Dmaven.javadoc.skip=true -Denforcer.skip=true"
+        cmd_2 = "${COMMON_BUILD_OPTS} -DskipTests -Pdist,sources -Dmaven.javadoc.skip=true -Denforcer.skip=true -Dfortify.sca.Xmx=48G -Dfortify.sca.Xss=400M -Dfortify.sca.sourceanalyzer.executable=${TOOLS_HOME}/fortify_sca_17.20/bin/sourceanalyzer -Dfortify.sca.source.version=1.8 -Dfortify.sca.cp=${MR_HOME}/repository -Dfortify.sca.buildId=hive-${hive_jar_version} ${FORTIFY_CLEAN_CMD}"
+        cmd_3 = "${COMMON_BUILD_OPTS} -DskipTests -Pdist,sources -Dmaven.javadoc.skip=true -Denforcer.skip=true -Dfortify.sca.Xmx=48G -Dfortify.sca.Xss=400M -Dfortify.sca.sourceanalyzer.executable=${TOOLS_HOME}/fortify_sca_17.20/bin/sourceanalyzer -Dfortify.sca.source.version=1.8 -Dfortify.sca.cp=${MR_HOME}/repository -Dfortify.sca.buildId=hive-${hive_jar_version} -Dfortify.sca.verbose=true -Dfortify.sca.translateLogfile=translate.log -Dfortify.sca.debug=true ${FORTIFY_TRANSLATE_CMD}"
+    	cmd_4 = sourceanalyzer -b hive-${hive_jar_version} ${FORTIFY_SCAN_LARGE_MEMORY} -scan -f hive-${hive_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} test-compile -Dmaven.test.failure.ignore=true"
+
+    [[test_coverage_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} cobertura:cobertura -Dmaven.test.failure.ignore=true"
+
+    [[text-replace]]
+        REPLACE_1 = "${hive_apache_base_maven_version}-SNAPSHOT", ${hive_jar_version}, pom.xml , key_value
+        REPLACE_2 = "${hive_apache_base_maven_version}", ${hive_jar_version}, pom.xml , key_value
+
+    [[xml-replace]]
+        REPLACE_1 = 'accumulo.version', ${accumulo_jar_version}, pom.xml
+        REPLACE_2 = 'calcite.version', ${calcite_jar_version}, pom.xml
+        REPLACE_3 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_4 = 'hbase.version', ${hbase_jar_version}, pom.xml
+        REPLACE_5 = 'hbase.hadoop2.version', ${hbase_jar_version}, pom.xml
+        REPLACE_6 = 'tez.version', ${tez_jar_version}, pom.xml
+        REPLACE_8 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_10 = 'storage-api.version', ${storage_api_jar_version}, pom.xml
+        REPLACE_11 = 'orc.version', ${orc_jar_version}, pom.xml
+        REPLACE_12 = 'druid.version', ${druid_jar_version}, pom.xml
+        REPLACE_13 = 'arrow.version', ${arrow_jar_version}, pom.xml
+        REPLACE_14 = 'parquet.version', ${parquet_jar_version}, pom.xml
+        REPLACE_15 = 'kafka.version', ${kafka_jar_version}, kafka-handler/pom.xml
+        REPLACE_16 = 'avatica.version', ${avatica_jar_version}, pom.xml
+        REPLACE_17 = 'hadoop2.version', ${hadoop2_lkgb_jar_version}, pom.xml
+        REPLACE_18 = 'avro.version', ${avro_jar_version}, pom.xml
+        REPLACE_19 = 'curator.version', '${curator_jar_version}', pom.xml
+        REPLACE_20 = 'curator.version', '${curator_jar_version}', standalone-metastore/pom.xml
+        REPLACE_21 = 'jetty.version', '${cdpd_jetty_version}', pom.xml
+        REPLACE_22 = 'commons-compress.version', '${cdpd_commons-compress_version}', pom.xml
+        REPLACE_23 = 'atlas.version', '${atlas_lkgb_jar_version}', pom.xml
+
+[hive-solr]
+buid_tool = gradle
+
+    [[install_cmd]]
+        cmd_1 = ./gradlew dist
+
+    [[test_cmd]]
+        cmd_1 = ./gradlew test
+
+    [[artifacts]]
+        artifact_1 = solr-hive-serde/build/libs/solr-hive-serde-${hive-solr_jar_version}.jar
+
+    [[text-replace]]
+        replace_0 = 'version', "${hive-solr_jar_version}", gradle.properties, key_value
+        replace_1 = 'solrVersion', "${solr_jar_version}", gradle.properties, key_value
+        replace_2 = 'hadoop3Version', "${hadoop_jar_version}", gradle.properties, key_value
+        replace_3 = 'hiveVersion', "${hive_jar_version}", gradle.properties, key_value
+        replace_4 = 'mavenUrl', ${NEXUS_PROXY_URL}, gradle.properties, key_value
+        replace_5 = 'gbnUrl', ${GBN_MVN_REPO}, gradle.properties, key_value
+
+[isa_l]
+
+    [[artifacts]]
+        artifact_1 = isal-${isa_l_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = sh autogen.sh
+        cmd_2 = ./configure --prefix=${SOURCE_ROOT}/isa_l/isal-${isa_l_jar_version}
+        cmd_3 = make
+        cmd_4 = make install
+        cmd_5 = tar -zcf isal-${isa_l_jar_version}.tar.gz isal-${isa_l_jar_version}
+
+[impala]
+PATH = "${SOURCE_ROOT}/buildvenv2.7/bin:${PATH}"
+DOCKER_REGISTRY = "docker-private.infra.cloudera.com/cloudera/"
+
+  [[artifacts]]
+    artifact_1 = impala-${impala_jar_version}.tar.gz
+    # Note: kudu-for-impala-${kudu_jar_version}.tar.gz unpacks to kudu-${kudu_jar_version}/
+    # The kudu-for-impala name is to keep it obviously distinct from the regular Kudu build.
+    artifact_2 = kudu-for-impala-${kudu_jar_version}.tar.gz
+    artifact_3 = kudu-jars-${kudu_jar_version}.tar.gz
+    artifact_4 = ccache-log-kudu-for-impala.txt
+    artifact_5 = ccache-log-impala-build.txt
+
+  [[download_modules]]
+    cmd_1 = ${cdh_S3_DEV_LOC}/tars/hive/hive-${hive_jar_version}-source.tar.gz, ${TMP_PACKAGES_DIR}/hive-${hive_jar_version}-source.tar.gz
+    cmd_2 = ${cdh_S3_DEV_LOC}/tars/hadoop/hadoop-${hadoop_jar_version}.tar.gz , ${TMP_PACKAGES_DIR}/hadoop-${hadoop_jar_version}.tar.gz
+    # This should used the patched source, but that is not functional yet.
+    cmd_3 = ${cdh_S3_DEV_LOC}/tars/kudu/kudu-${kudu_jar_version}-source.tar.gz , ${TMP_PACKAGES_DIR}/kudu-${kudu_jar_version}-source.tar.gz
+    cmd_4 = ${cdh_S3_DEV_LOC}/tars/kudu/kudu-${kudu_jar_version}.tar.gz , ${TMP_PACKAGES_DIR}/kudu-${kudu_jar_version}.tar.gz
+    cmd_5 = ${cdh_S3_DEV_LOC}/tars/atlas/apache-atlas-${atlas_jar_version}-impala-hook.tar.gz, ${TMP_PACKAGES_DIR}/apache-atlas-${atlas_jar_version}-impala-hook.tar.gz
+
+  [[install_cmd]]
+    cmd_1 = virtualenv --python=${HOME}/tools/python/2.7.9/bin/python buildvenv2.7 , ${SOURCE_ROOT}
+    cmd_2 = bash -c "TMP_PACKAGES_DIR=${TMP_PACKAGES_DIR} IMPALA_VERSION=${impala_jar_version} IMPALA_BUILD_THREADS=32 ./cloudera/cdp_install_cmd.sh"
+
+  [[text-replace]]
+    # The text replacements are used in two different ways:
+    # 1. Text replacements are used when doing a downstream CDP build to set versions in
+    #    the source so that the Impala build knows what versions it is building against.
+    #    The modifications are used only by the build system and do not get committed.
+    # 2. Text replacements are also used by the set_snapshot_versions job to set SNAPSHOT
+    #    versions. The job performs the text replacements and it commits any changes.
+    #    Since the SNAPSHOT versions do not contain the build number, the versions should
+    #    not change frequently. This job keeps Impala up to date when branching.
+    # To handle these two cases, there are some rules for our text replacements:
+    # - All text replacements should be idempotent.
+    # - All text replacements should change infrequently when running via the
+    #   set_snapshot_versions job. This rules out things like GBNs.
+    # - Since Impala does not use SNAPSHOT versions for the standalone build, the
+    #   snapshot replacements happen in a location that only impacts the downstream CDP
+    #   build and does not impact a standalone build.
+
+    # Set the docker registry. This must be REPLACE_1 to line up with canary.ini's REPLACE_1
+    REPLACE_1 = "registry:.*", 'registry: ${DOCKER_REGISTRY}', cloudera/docker_images.yml, regex_replace
+
+    # Set the versions in bin/impala-config-branch.sh. These do not impact the standalone
+    # Impala build. They are only used for the downstream CDP build.
+    REPLACE_2 = "export CDP_HADOOP_VERSION=.*", 'export CDP_HADOOP_VERSION=${hadoop_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_3 = "export CDP_HBASE_VERSION=.*", 'export CDP_HBASE_VERSION=${hbase_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_4 = "export CDP_HIVE_VERSION=.*", 'export CDP_HIVE_VERSION=${hive_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_5 = "export CDP_KNOX_VERSION=.*", 'export CDP_KNOX_VERSION=${knox_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_6 = "export CDP_KUDU_VERSION=.*", 'export CDP_KUDU_VERSION=${kudu_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_7 = "export CDP_KUDU_JAVA_VERSION=.*", 'export CDP_KUDU_JAVA_VERSION=${kudu_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_8 = "export CDP_RANGER_VERSION=.*", 'export CDP_RANGER_VERSION=${ranger_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_9 = "export CDP_TEZ_VERSION=.*", 'export CDP_TEZ_VERSION=${tez_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_10 = "export CDP_OZONE_VERSION=.*", 'export CDP_OZONE_VERSION=${ozone_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_11 = "export CDP_ATLAS_VERSION=.*", 'export CDP_ATLAS_VERSION=${atlas_jar_version}', bin/impala-config-branch.sh, regex_replace
+    # Until Impala uses CDP_KUDU_VERSION/CDP_KUDU_JAVA_VERSION, we also need to override
+    # IMPALA_KUDU_VERSION and IMPALA_KUDU_JAVA_VERSION as well.
+    # TODO: Remove these when Impala fixes its CDP Kudu handling
+    REPLACE_12 = "export IMPALA_KUDU_VERSION=.*", 'export IMPALA_KUDU_VERSION=${kudu_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_13 = "export IMPALA_KUDU_JAVA_VERSION=.*", 'export IMPALA_KUDU_JAVA_VERSION=${kudu_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_14 = "export CDP_AVRO_JAVA_VERSION=.*", 'export CDP_AVRO_JAVA_VERSION=${avro_jar_version}', bin/impala-config-branch.sh, regex_replace
+    REPLACE_15 = "export CDP_PARQUET_VERSION=.*", 'export CDP_PARQUET_VERSION=${parquet_jar_version}', bin/impala-config-branch.sh, regex_replace
+
+    # This is the only replacement that impacts the standalone Impala build. This gets
+    # updated on branching and is used to get an appropriate GBN from builddb.
+    REPLACE_16 = "export CDP_VERSION=.*", 'export CDP_VERSION=${STACKVERSION}', bin/impala-config-branch.sh, regex_replace
+
+  [[fortify_cmd]]
+    cmd_1 = virtualenv --python=${HOME}/tools/python/2.7.9/bin/python buildvenv2.7 , ${SOURCE_ROOT}
+    cmd_2 = bash -c "TMP_PACKAGES_DIR=${TMP_PACKAGES_DIR} IMPALA_VERSION=${impala_jar_version} ./cloudera/cdp_install_cmd.sh"
+    cmd_3 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_CLEAN_CMD}", impala-parent
+    cmd_4 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_TRANSLATE_CMD}", impala-parent
+    cmd_5 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_CLEAN_CMD}", query-event-hook-api
+    cmd_6 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_TRANSLATE_CMD}", query-event-hook-api
+    cmd_7 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_CLEAN_CMD}", shaded-deps
+    cmd_8 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_TRANSLATE_CMD}", shaded-deps
+    cmd_9 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_CLEAN_CMD}", ext-data-source
+    cmd_10 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_TRANSLATE_CMD}", ext-data-source
+    cmd_11 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_CLEAN_CMD}", common/yarn-extras
+    cmd_12 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_TRANSLATE_CMD}", common/yarn-extras
+    cmd_13 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_CLEAN_CMD}", fe
+    cmd_14 = bash -c " . ${SOURCE_ROOT}/impala/bin/impala-config.sh && ${MVN_CMD} -B -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=impala-${impala_jar_version} ${FORTIFY_TRANSLATE_CMD}", fe
+    cmd_15 = sourceanalyzer -b impala-${impala_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f impala-${impala_jar_version}.fpr
+
+[hue]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL} -Dreponame=${NEXUS_DEPLOY_REPO_ID} ${MAVEN_TEST_OPTS} ${NPM_ARGS}"
+deploy_cmd = ${COMMON_BUILD_OPTS} -DskipTests deploy
+coverage_tool = cobertura
+PYPI_MIRROR = "https://pypi.infra.cloudera.com/api/pypi/pypi-public/simple/"
+PATH = ${PYTHON27_PATH}:${PATH}
+
+    [[setversion_cmd]]
+    cmd_1 = ${MVN_CMD} -f maven/pom.xml ${MVN_SET_VERSION_CMD} -DnewVersion=${hue_jar_version}
+    cmd_2 = ${MVN_CMD} -f desktop/libs/librdbms/java/pom.xml versions:update-parent -DparentVersion=${hue_jar_version}
+
+    [[artifacts]]
+    artifact_1 = build/hue-${hue_jar_version}.tar.gz
+    artifact_2 = desktop/desktop.db
+
+    [[install_cmd]]
+    cmd_1 = bash -c "mkdir -p build/release/prod/"
+    cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests -f maven/pom.xml install -Dmaven.javadoc.skip=true -DlocalRepositoryPath=build/release/prod/
+    #	Python virtual environments are created by Makefile and relocatable.sh
+    cmd_3 = bash -c "PYPI_MIRROR=${PYPI_MIRROR} make apps docs"
+    cmd_4 = bash -c "PYPI_MIRROR=${PYPI_MIRROR} bash ./tools/relocatable.sh"
+    cmd_5 = bash -c "PYPI_MIRROR=${PYPI_MIRROR} make prod"
+    cmd_6 = bash -c "rm -rf build/release/prod/hue-*.tgz build/release/prod/hue-${hue_jar_version}"
+    cmd_7 = bash -c "mv build/release/prod/hue-* build/release/prod/hue-${hue_jar_version}"
+	cmd_8 = tar --use-compress-program pigz -C build/release/prod -cf "build/hue-${hue_jar_version}.tar.gz" "hue-${hue_jar_version}"
+
+    [[xml-replace]]
+        REPLACE_1 = parent/version, ${hue_jar_version}, desktop/libs/librdbms/java/pom.xml
+
+[schemaregistry]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} -B -nsu ${NPM_ARGS}"
+setversion_cmd = "${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${schemaregistry_jar_version} -Pdist"
+
+    [[artifacts]]
+        artifact_1 = registry-dist/target/schemaregistry-${schemaregistry_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} clean install -DskipTests -Pdist"
+
+    [[fortify_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} clean install -DskipTests -Pdist"
+        cmd_2 = "${COMMON_BUILD_OPTS} -DskipTests -Pdist -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=schemaregistry-${schemaregistry_jar_version} ${FORTIFY_CLEAN_CMD}"
+        cmd_3 = "${COMMON_BUILD_OPTS} -DskipTests -Pdist -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=schemaregistry-${schemaregistry_jar_version} ${FORTIFY_TRANSLATE_CMD}"
+        cmd_4 = "${COMMON_BUILD_OPTS} ${FORTIFY_ARGS} -Dfortify.sca.buildId=schemaregistry-${schemaregistry_jar_version} ${FORTIFY_SCAN_CMD}"
+
+    [[test_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} -T 2.0C clean install"
+
+    [[xml-replace]]
+        REPLACE_1 = 'final.Name', 'schemaregistry', registry-dist/pom.xml
+        REPLACE_2 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_3 = 'kafka.version', ${kafka_jar_version}, pom.xml
+        REPLACE_4= 'curator.version', ${curator_jar_version}, pom.xml
+        REPLACE_5 = 'curator-test.version', ${curator_jar_version}, pom.xml
+        REPLACE_6 = 'schema-registry-shaded.version', ${schema_registry_shaded_jar_version}, pom.xml
+
+[schema_registry_shaded]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} -B -nsu"
+setversion_cmd = "${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${schema_registry_shaded_jar_version}"
+
+    [[artifacts]]
+        artifact_1 = jersey-shaded/target/jersey-shaded-${schema_registry_shaded_jar_version}.jar
+        artifact_2 = ranger-shaded/target/ranger-shaded-${schema_registry_shaded_jar_version}.jar
+
+    [[install_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} clean install -DskipTests"
+
+    [[fortify_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} clean install -DskipTests"
+        cmd_2 = "${COMMON_BUILD_OPTS} -DskipTests -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=schema-registry-shaded-${schema_registry_shaded_jar_version} ${FORTIFY_CLEAN_CMD}"
+        cmd_3 = "${COMMON_BUILD_OPTS} -DskipTests -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=schema-registry-shaded-${schema_registry_shaded_jar_version} ${FORTIFY_TRANSLATE_CMD}"
+        cmd_4 = "${COMMON_BUILD_OPTS} ${FORTIFY_ARGS} -Dfortify.sca.buildId=schema-registry-shaded-${schema_registry_shaded_jar_version} ${FORTIFY_SCAN_CMD}"
+
+    [[test_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} -T 2.0C clean install"
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_2 = 'ranger.version', ${ranger_jar_version}, pom.xml
+        REPLACE_3 = 'curator.version', ${curator_jar_version}, pom.xml
+        REPLACE_4 = 'curator-test.version', ${curator_jar_version}, pom.xml
+
+[kafka]
+build_tool = gradle
+COMMON_BUILD_OPTS = "{GRADLE_CMD} ${GRADLE_OPTS} "
+deploy_cmd = ${COMMON_BUILD_OPTS} deploy
+kafka_scala_version = 2.12
+kafka_scala_version_compile = 2.12.10
+package_count = 2
+
+BUILD_KAFKA_SETVERSION_OPTS = "-Pversion=${kafka_jar_version}"
+BUILD_KAFKA_OPTS = "${BUILD_KAFKA_SETVERSION_OPTS}"
+BUILD_KAFKA_DOC_OPTS = "${BUILD_KAFKA_OPTS} docsJar"
+BUILD_KAFKA_INSTALL_OPTS = "${BUILD_KAFKA_OPTS} clean jar"
+BUILD_KAFKA_EXAMPLES_INSTALL_OPTS = "${BUILD_KAFKA_OPTS} examples:jar"
+BUILD_KAFKA_DEPLOY_OPTS = "${BUILD_KAFKA_OPTS} releaseTarGz"
+BUILD_KAFKA_TEST_OPTS = "${BUILD_KAFKA_OPTS} cleanTest test -PrepoUrl=${NEXUS_PROXY_URL} -Pgbnurl=${GBN_MVN_REPO}"
+BUILD_KAFKA_UPLOAD = "${BUILD_KAFKA_SETVERSION_OPTS} installAll"
+
+    [[artifacts]]
+        artifact_1 = core/build/distributions/kafka_${kafka_scala_version}-${kafka_jar_version}.tgz
+        artifact_2 = kafka.tar.gz
+
+    [[install_cmd]]
+        cmd_2 = ./gradlew ${BUILD_KAFKA_INSTALL_OPTS}
+        cmd_3 = ./gradlew ${BUILD_KAFKA_DOC_OPTS}
+        cmd_4 = ./gradlew ${BUILD_KAFKA_EXAMPLES_INSTALL_OPTS}
+        cmd_6 = ./gradlew ${BUILD_KAFKA_DEPLOY_OPTS}
+        cmd_7 = ./gradlew ${BUILD_KAFKA_UPLOAD}
+        cmd_10 =  "tar -zcvf kafka.tar.gz core/build/docs NOTICE LICENSE"
+
+   [[test_cmd]]
+        cmd_1 = ./gradlew ${BUILD_KAFKA_TEST_OPTS}
+
+   [[fortify_cmd]]
+        # TO DO Replace gradlew PATH. For now hard coding the path.
+        cmd_2 = sourceanalyzer -b kafka-${kafka_jar_version} -source "1.7" ${SOURCE_ROOT}/kafka/gradlew ${BUILD_KAFKA_INSTALL_OPTS}
+        cmd_3 = sourceanalyzer -b kafka-${kafka_jar_version} -source "1.7" ${SOURCE_ROOT}/kafka/gradlew ${BUILD_KAFKA_DOC_OPTS}
+        cmd_4 = sourceanalyzer -b kafka-${kafka_jar_version} -source "1.7" ${SOURCE_ROOT}/kafka/gradlew ${BUILD_KAFKA_EXAMPLES_INSTALL_OPTS}
+        cmd_6 = sourceanalyzer -b kafka-${kafka_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f kafka-${kafka_jar_version}.fpr
+
+   [[text-replace]]
+        REPLACE_1 = 'scalaVersion', ${kafka_scala_version_compile}, gradle.properties , key_value
+        REPLACE_2 = 'version', ${kafka_jar_version}, gradle.properties , key_value
+        REPLACE_3 = 'zookeeperVersion', ${zookeeper_jar_version}, gradle.properties , key_value
+        REPLACE_4 = 'mavenUrl', ${NEXUS_PROXY_URL}, gradle.properties , key_value
+        REPLACE_5 = 'gbnUrl', ${GBN_MVN_REPO}, gradle.properties , key_value
+
+        REPLACE_6 = 'jetty', ${cdpd_jetty_version}, gradle/dependencies.gradle , key_value
+
+[kafka_connect_ext]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} -B -nsu ${NPM_ARGS}"
+setversion_cmd = "${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${kafka_connect_ext_jar_version}"
+
+    [[artifacts]]
+        artifact_1 = dist/target/kafka_connect_ext-${kafka_connect_ext_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} clean -DskipTests -Dskip.e2e.test install -pl '!connect-image-full'"
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean -DskipTests -Dskip.e2e.test install -pl '!connect-image-full'
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipITs -DskipTests -Dskip.e2e.test -pl '!connect-image-full' ${FORTIFY_ARGS} -Dfortify.sca.buildId=kafka_connect_ext-${kafka_connect_ext_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipITs -DskipTests  -Dskip.e2e.test -pl '!connect-image-full' ${FORTIFY_ARGS} -Dfortify.sca.buildId=kafka_connect_ext-${kafka_connect_ext_jar_version} ${FORTIFY_TRANSLATE_CMD}
+    	cmd_4 = sourceanalyzer -b kafka_connect_ext-${kafka_connect_ext_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f kafka_connect_ext-${kafka_connect_ext_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} -T 2.0C clean install"
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_2 = 'kafka.version', ${kafka_jar_version}, pom.xml
+        REPLACE_3 = 'schema.registry.version', ${schemaregistry_jar_version}, pom.xml
+        REPLACE_4 = 'parquet.version', ${parquet_jar_version}, pom.xml
+
+[knox]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} -Ppackage,release,idbroker -DskipCheck=true -Dcheckstyle.skip=true -Drepo.id=${NEXUS_DEPLOY_REPO_ID} -Dinternal.maven.repo=${NEXUS_REPO_URL} ${NPM_ARGS}"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${knox_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS}  deploy -DskipITs -DskipTests
+package = 2
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = target/${knox_jar_version}/knox-${knox_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install -DskipITs -DskipTests -Dmaven.javadoc.skip=true
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install -DskipITs -DskipTests -Dmaven.javadoc.skip=true
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipITs -DskipTests -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=knox-${knox_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipITs -DskipTests -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=knox-${knox_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b knox-${knox_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f knox-${knox_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = "${MVN_CMD} -DskipTests=false -Ppackage,release,idbroker install"
+
+    [[test_coverage_cmd]]
+        cmd_1 = "${MVN_CMD} -DskipTests=false -Ppackage,release,idbroker cobertura:cobertura"
+
+    [[xml-replace]]
+    REPLACE_1 = 'gateway.version', ${knox_jar_version}, pom.xml
+    REPLACE_2 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+    REPLACE_3 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+    REPLACE_4 = 'gcs.version', ${gcs_jar_version}, gateway-cloud-bindings/pom.xml
+    REPLACE_5 = 'bigdataoss.version', ${gcs_jar_version}, gateway-cloud-bindings/pom.xml
+
+    REPLACE_6 = 'curator.version', '${curator_jar_version}', pom.xml
+    REPLACE_7 = 'jetty.version', '${cdpd_jetty_version}', pom.xml
+    REPLACE_8 = 'log4j.version' , '${cdpd_log4j_version}', pom.xml
+    REPLACE_9 = 'netty.version' , '${cdpd_netty4_version}', pom.xml
+
+[kudu]
+build_tool = gradle
+CSD_BUILD_DIR = "${SOURCE_ROOT}/kudu/build/packages/kudu-csd-mvn/"
+
+    [[artifacts]]
+        artifact_1 = kudu-${kudu_jar_version}.tar.gz
+        artifact_2 = kudu-csd-${kudu_jar_version}.tar.gz
+        artifact_3 = kudu-${kudu_jar_version}-patched-source.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = bash -c "./cloudera/cdpd_install_cmd.sh"
+        cmd_2 = bash -c "./cloudera/build_csd.sh ${CSD_BUILD_DIR}"
+
+    [[fortify_cmd]]
+        cmd_1 = bash -c "BUILD_THREADS=32 ./cloudera/cdpd_install_cmd.sh"
+        cmd_2 = sourceanalyzer -b kudu-${kudu_jar_version} -source "1.8" ${SOURCE_ROOT}/kudu/java/gradlew install -PskipSigning=true, java
+        cmd_3 = sourceanalyzer -b kudu-${kudu_jar_version} -Xmx48G -scan -f ${kudu_jar_version}.fpr
+
+    [[text-replace]]
+        # These textual substitutions harmonize the versions of various Gradle
+        # dependencies with those found in CDPD.
+        REPLACE_1 = 'avro *: "[^:\$]+"', 'avro : "${avro_jar_version}"', java/gradle/dependencies.gradle , regex_replace
+        REPLACE_2 = 'hadoop *: "[^:\$]+"', 'hadoop : "${hadoop_jar_version}"', java/gradle/dependencies.gradle , regex_replace
+        REPLACE_3 = 'hive *: "[^:\$]+"', 'hive : "${hive_jar_version}"', java/gradle/dependencies.gradle , regex_replace
+        REPLACE_4 = 'parquet *: "[^:\$]+"', 'parquet : "${parquet_jar_version}"', java/gradle/dependencies.gradle , regex_replace
+        REPLACE_5 = 'ranger *: "[^:\$]+"', 'ranger : "${ranger_jar_version}"', java/gradle/dependencies.gradle , regex_replace
+        REPLACE_6 = 'slf4j *: "[^:\$]+"', 'slf4j : "1.7.25"', java/gradle/dependencies.gradle , regex_replace
+        REPLACE_7 = 'spark *: "[^:\$]+"', 'spark : "${spark_jar_version}"', java/gradle/dependencies.gradle , regex_replace
+        # Use the private Cloudera repository.
+        REPLACE_8 = 'repositoryUrl[^=]*=.*', "repositoryUrl=${NEXUS_PROXY_URL}", java/gradle.properties , regex_replace
+        REPLACE_9 = 'gbnUrl[^=]*=.*', "gbnUrl=${GBN_MVN_REPO}", java/gradle.properties , regex_replace
+        # Change the versions on the CSD artifacts to match the branch we're
+        # building rather than e.g. 7.x.0.
+        REPLACE_10 = 'cmVersion[^=]*=.*', "cmVersion=${STACKVERSION}", java/gradle.properties, regex_replace
+        # Substitute in the version that's built into Kudu.
+        REPLACE_11 = '.+', "${kudu_jar_version}", version.txt , regex_replace
+
+[livy]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} ${MAVEN_TEST_OPTS} -Dtar -Pgpg -Pthriftserver -Dhadoop.version=${hadoop_jar_version} -Drepo.id=${NEXUS_DEPLOY_REPO_ID} -Dinternal.maven.repository=${NEXUS_REPO_URL} -DaltDeploymentRepository=${NEXUS_DEPLOY_REPO_ID}::default::${NEXUS_REPO_URL} -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} ${NPM_ARGS}"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${livy_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} deploy
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = assembly/target/livy-server-${livy_jar_version}.zip
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install -Dmaven.javadoc.skip=true -DskipTests -Dskip -DskipITs
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -Dmaven.javadoc.skip=true -DskipTests -Dskip -DskipITs install
+        cmd_2 = ${COMMON_BUILD_OPTS} -Dmaven.javadoc.skip=true -DskipTests -Dskip -DskipITs ${FORTIFY_ARGS} -Dfortify.sca.buildId=livy-${livy_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -Dmaven.javadoc.skip=true -DskipTests -Dskip -DskipITs ${FORTIFY_ARGS} -Dfortify.sca.buildId=livy-${livy_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b livy-${livy_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f livy-${livy_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} verify -pl !coverage -pl !python-api
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} cobertura:cobertura -pl !python-api
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_2 = 'spark.version', ${spark_jar_version}, pom.xml
+        REPLACE_3 = 'hive.version', ${hive_jar_version}, pom.xml
+        REPLACE_4 = 'spark.version', ${spark_jar_version}, repl/scala-2.11/pom.xml
+        REPLACE_5 = 'spark.version', ${spark_jar_version}, scala-api/scala-2.11/pom.xml
+        REPLACE_6 = 'curator.version', ${curator_jar_version}, pom.xml
+        REPLACE_7 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_8 = 'jetty.version', '${cdpd_jetty_version}', pom.xml
+
+[phoenix]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Dreponame=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL} -Drepo.maven.org=${NEXUS_PROXY_URL} ${NPM_ARGS}"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${phoenix_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} clean package deploy -Pgpg -DskipITs -DskipTests
+
+    [[artifacts]]
+        artifact_1 = phoenix-assembly/target/phoenix-${phoenix_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean install -DskipITs -DskipTests -Dmaven.javadoc.skip=true
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -DskipITs -DskipTests -Dmaven.javadoc.skip=true clean install
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipITs -DskipTests -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=phoenix-${phoenix_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipITs -DskipTests -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=phoenix-${phoenix_jar_version} ${FORTIFY_TRANSLATE_CMD}
+    	cmd_4 = sourceanalyzer -b phoenix-${phoenix_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f phoenix-${phoenix_jar_version}.fpr
+
+# BUG-107144 we seem to inherit a value for HADOOP_CONF_DIR somewhere in the environment
+#   which has been observed to directly affect the minicluster for the phoenix-hive tests when set.
+    [[test_cmd]]
+        cmd_1 = HADOOP_CONF_DIR="" ${COMMON_BUILD_OPTS} ${MAVEN_TEST_OPTS} -DfailIfNoTests=false -DreuseForks=false verify
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} ${MAVEN_TEST_OPTS} -DfailIfNoTests=false -DreuseForks=false cobertura:cobertura
+
+    [[xml-replace]]
+        REPLACE_2 = 'hadoop-two.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_3 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_4 = 'hbase.version', ${hbase_jar_version}, pom.xml
+        REPLACE_7 = 'avatica.version', ${avatica_jar_version}, pom.xml
+        REPLACE_8 = 'hive.avatica.version', ${avatica_jar_version}, pom.xml
+        REPLACE_9 = 'calcite.version', ${calcite_jar_version}, pom.xml
+        REPLACE_10 = 'hive.version', ${hive_jar_version}, pom.xml
+        REPLACE_11 = 'spark.version', ${spark_jar_version}, pom.xml
+        REPLACE_12 = 'tez.version', ${tez_jar_version}, pom.xml
+        REPLACE_13 = 'kafka.version', ${kafka_jar_version}, pom.xml
+
+        REPLACE_14 = 'commons-codec.version' , '${cdpd_commons-codec_version}', pom.xml
+        REPLACE_15 = 'commons-io.version' , '${cdpd_commons-io_version}', pom.xml
+        REPLACE_16 = 'commons-lang.version' , '${cdpd_commons-lang3_version}', pom.xml
+        REPLACE_17 = 'curator.version' , '${curator_jar_version}', pom.xml
+        REPLACE_18 = 'jackson.version' , '${cdpd_jackson_version}', pom.xml
+        REPLACE_19 = 'jetty.version' , '${cdpd_jetty_version}', pom.xml
+        REPLACE_20 = 'junit.version' , '${cdpd_junit4_version}', pom.xml
+        REPLACE_21 = 'log4j.version' , '${cdpd_log4j_version}', pom.xml
+#        REPLACE_22 = 'protobuf-java.version' , '${cdpd_protobuf2_version}', pom.xml
+        REPLACE_23 = 'slf4j.version' , '${cdpd_slf4j_version}', pom.xml
+
+[pydruid]
+build_tool = python
+no_package = True
+
+    [[artifacts]]
+           artifact_1 = dist/pydruid-0.4.2-py2.py3-none-any.whl
+
+    [[install_cmd]]
+           cmd_1 = ${BASE_DIR}/buildvenv/bin/python setup.py bdist_wheel
+
+[parquet]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${parquet_jar_version}
+deploy_cmd = "${MVN_CMD} deploy -Drepo.id=${NEXUS_DEPLOY_REPO_ID} -Dinternal.maven.repo=${NEXUS_REPO_URL} -DskipITs -DskipTests"
+PATH=${PROTOBUF351_HOME}/bin:${PATH}
+
+    [[artifacts]]
+        artifact_1 = parquet-${parquet_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} -B clean install -DskipTests -Plocal
+        cmd_2 = mkdir ../parquet-${parquet_jar_version}
+        cmd_3 = cp -rpf . ../parquet-${parquet_jar_version}
+        cmd_4 = tar --exclude-vcs -czf parquet-${parquet_jar_version}.tar.gz ../parquet-${parquet_jar_version}
+        cmd_5 = rm -rf ../parquet-${parquet_jar_version}
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_CMD} -DskipTests clean install
+        cmd_2 = ${MVN_CMD} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=parquet-${parquet_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${MVN_CMD} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=parquet-${parquet_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b parquet-${parquet_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f parquet-${parquet_jar_version}.fpr
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_3 = 'avro.version', ${avro_jar_version}, pom.xml
+        REPLACE_4 = 'thrift.version', 0.9.3, pom.xml
+        REPLACE_5 = 'jackson2.version', 2.10.3, pom.xml
+
+[ratis]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${ratis_jar_version}
+deploy_cmd = "${MVN_CMD} deploy -Drepo.id=${NEXUS_DEPLOY_REPO_ID} -Dinternal.maven.repo=${NEXUS_REPO_URL} -DskipITs -DskipTests"
+PATH=${PROTOBUF351_HOME}/bin:${PATH}
+JAVA_HOME=${TOOLS_HOME}/jdk8/jdk1.8.0_171
+no_package = True
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} -B clean install -DskipTests
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_CMD} -DskipTests clean install
+        cmd_2 = ${MVN_CMD} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=ratis-${ratis_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${MVN_CMD} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=ratis-${ratis_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b ratis-${ratis_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f ratis-${ratis_jar_version}.fpr
+
+    [[xml-replace]]
+        REPLACE_1 = 'log4j.version', ${cdpd_log4j_version}, pom.xml
+        REPLACE_2 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_3 = 'ratis.thirdparty.version', ${ratis-thirdparty_jar_version}, pom.xml
+
+[ratis-thirdparty]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${ratis-thirdparty_jar_version}
+deploy_cmd = "${MVN_CMD} deploy -Drepo.id=${NEXUS_DEPLOY_REPO_ID} -Dinternal.maven.repo=${NEXUS_REPO_URL} -DskipITs -DskipTests"
+PATH=${PROTOBUF351_HOME}/bin:${PATH}
+JAVA_HOME=${TOOLS_HOME}/jdk8/jdk1.8.0_171
+no_package = True
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} -B clean install -DskipTests
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_CMD} -DskipTests clean install
+        cmd_2 = ${MVN_CMD} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=ratis-thirdparty-${ratis-thirdparty_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${MVN_CMD} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=ratis-thirdparty-${ratis-thirdparty_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b ratis-thirdparty-${ratis-thirdparty_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f ratis-thirdparty-${ratis-thirdparty_jar_version}.fpr
+#TODO, Add depedency to Hadoop and add ratis-thirdparty as dependency to Ratis.
+
+[ranger]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN333_CMD} -DskipCheck=true -Dcheckstyle.skip=true -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} ${NPM_ARGS}"
+setversion_cmd = ${MVN333_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${ranger_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} package assembly:assembly deploy -Pgpg -DskipITs -DskipTests -Dmaven.javadoc.skip=true
+
+    [[artifacts]]
+        artifact_1 = target/ranger-${ranger_jar_version}-admin.tar.gz
+        artifact_2 = target/ranger-${ranger_jar_version}-hbase-plugin.tar.gz
+        artifact_3 = target/ranger-${ranger_jar_version}-hdfs-plugin.tar.gz
+        artifact_4 = target/ranger-${ranger_jar_version}-hive-plugin.tar.gz
+        artifact_5 = target/ranger-${ranger_jar_version}-kafka-plugin.tar.gz
+        artifact_6 = target/ranger-${ranger_jar_version}-kms.tar.gz
+        artifact_7 = target/ranger-${ranger_jar_version}-knox-plugin.tar.gz
+        artifact_8 = target/ranger-${ranger_jar_version}-migration-util.tar.gz
+        artifact_9 = target/ranger-${ranger_jar_version}-ranger-tools.tar.gz
+        artifact_10 = target/ranger-${ranger_jar_version}-solr-plugin.tar.gz
+        artifact_12 = target/ranger-${ranger_jar_version}-tagsync.tar.gz
+        artifact_13 = target/ranger-${ranger_jar_version}-usersync.tar.gz
+        artifact_14 = target/ranger-${ranger_jar_version}-yarn-plugin.tar.gz
+        artifact_15 = target/ranger-${ranger_jar_version}-src.tar.gz
+        artifact_16 = target/ranger-${ranger_jar_version}-atlas-plugin.tar.gz
+        artifact_17 = target/ranger-${ranger_jar_version}-solr_audit_conf.zip
+        artifact_18 = target/ranger-${ranger_jar_version}-ozone-plugin.tar.gz
+        artifact_19 = target/ranger-${ranger_jar_version}-raz.tar.gz
+        artifact_20 = target/ranger-${ranger_jar_version}-raz-adls.tar.gz
+        artifact_21 = target/ranger-${ranger_jar_version}-rms.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} package install -Pgpg -DskipITs -DskipTests -Dmaven.javadoc.skip=true
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install -Pgpg -DskipITs -DskipTests -Dmaven.javadoc.skip=true
+        cmd_2 = ${COMMON_BUILD_OPTS} -Pgpg -DskipTests -DskipITs -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=ranger-${ranger_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -Pgpg -DskipTests -DskipITs -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=ranger-${ranger_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b ranger-${ranger_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f ranger-${ranger_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} test -DfailIfNoTests=false ${MAVEN_TEST_OPTS}
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} cobertura:cobertura -DfailIfNoTests=false ${MAVEN_TEST_OPTS}
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_2 = 'hadoop-auth.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_3 = 'hadoop-common.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_4 = 'hbase.version', ${hbase_jar_version}, pom.xml
+        REPLACE_5 = 'hive.version', ${hive_jar_version}, pom.xml
+        REPLACE_6 = 'kafka.version', ${kafka_jar_version}, pom.xml
+        REPLACE_7 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_8 = 'tez.version', ${tez_jar_version}, pom.xml
+        REPLACE_9 = 'calcite.version', ${calcite_jar_version}, pom.xml
+        REPLACE_10 = 'knox.gateway.version', ${knox_jar_version}, pom.xml
+        REPLACE_12 = 'atlas.version', ${atlas_jar_version}, pom.xml
+        REPLACE_13 = 'avro.version' , ${avro_jar_version} , pom.xml
+        REPLACE_15 = 'hbase-shaded-protobuf', '${hbase_thirdparty_jar_version}', pom.xml
+        REPLACE_16 = 'hbase-shaded-netty', '${hbase_thirdparty_jar_version}', pom.xml
+        REPLACE_17 = 'hbase-shaded-miscellaneous', '${hbase_thirdparty_jar_version}', pom.xml
+        REPLACE_18 = 'schema.registry.version', '${schemaregistry_lkgb_jar_version}', pom.xml
+
+[search]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${search_jar_version}
+
+    [[artifacts]]
+        artifact_1 = search-dist/target/cloudera-search-${search_jar_version}-search-dist.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} clean install -DskipTests
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_CMD} -DskipTests clean install
+        cmd_2 = ${MVN_CMD} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=search-${search_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${MVN_CMD} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=search-${search_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b search-${search_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f search-${search_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = ${MVN_CMD} -Dmaven.test.failure.ignore=true --fail-at-end clean test
+
+    [[xml-replace]]
+        REPLACE_1  = 'avro.version', ${avro_jar_version}, pom.xml
+        REPLACE_2  = 'crunch.version', ${crunch_jar_version}, pom.xml
+        REPLACE_3  = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_4  = 'hadoop.version', ${hadoop_jar_version}, search-mr/pom.xml
+        REPLACE_5  = 'hadoop.version', ${hadoop_jar_version}, search-crunch/pom.xml
+        REPLACE_6  = 'hive.version', ${hive_jar_version}, pom.xml
+        REPLACE_7  = 'parquet.version', ${parquet_jar_version}, pom.xml
+        REPLACE_8  = 'parquet.version', ${parquet_jar_version}, search-crunch/pom.xml
+        REPLACE_9  = 'spark.version', ${spark_jar_version}, search-crunch/pom.xml
+        REPLACE_10 = 'solr.version', ${solr_jar_version}, pom.xml,
+        REPLACE_11 = 'solr.expected.version', ${solr_jar_version}, pom.xml
+        REPLACE_12 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+
+        REPLACE_13 = 'scala.base.version', '2.11',  search-crunch/pom.xml
+        REPLACE_14 = 'httpclient.version', '${cdpd_httpclient_version}', pom.xml
+        REPLACE_15 = 'httpcomponents.core.version', '${cdpd_httpcore_version}', pom.xml
+        REPLACE_16 = 'tika.version', '1.24', pom.xml
+        REPLACE_17 = 'slf4j.version', '${cdpd_slf4j_version}', pom.xml
+        REPLACE_18 = 'surefire.version', '2.20', pom.xml
+        REPLACE_19 = 'jackson.version', '2.10.0', pom.xml
+        REPLACE_20 = 'commons-lang3.version', '${cdpd_commons-lang3_version}', search-mr/pom.xml
+        REPLACE_21 = 'snappy.version', '1.1.4', search-crunch/pom.xml
+        REPLACE_22 = 'jetty.version', '${cdpd_jetty_version}', pom.xml
+        REPLACE_23 = 'commons-beanutils.version', '${cdpd_commons-beanutils_version}', pom.xml
+        REPLACE_24 = 'commons-cli.version', '1.2', pom.xml
+        REPLACE_25 = 'commons-codec.version', '${cdpd_commons-codec_version}', pom.xml
+        REPLACE_26 = 'commons-collections.version', '${cdpd_commons-collections_version}', pom.xml
+        REPLACE_27 = 'compress.version', '${cdpd_commons-compress_version}', pom.xml
+        REPLACE_28 = 'commons-daemon.version', '${cdpd_commons-daemon_version}', pom.xml
+        REPLACE_29 = 'commons-io.version', '${cdpd_commons-io_version}', pom.xml
+        REPLACE_30 = 'curator.version', '${curator_jar_version}', pom.xml
+        REPLACE_31 = 'gson.version', '${cdpd_gson_version}', pom.xml
+        REPLACE_32 = 'jackson1.version', '${cdpd_jackson_version}', pom.xml
+        REPLACE_33 = 'jline.version', '${cdpd_jline_version}', pom.xml
+        REPLACE_34 = 'joda-time.version', '${cdpd_joda-time_version}', pom.xml
+        REPLACE_35 = 'kerby.version', '${cdpd_kerby_version}', pom.xml
+        REPLACE_36 = 'log4j.version', '${cdpd_log4j_version}', pom.xml
+        REPLACE_37 = 'log4j2.version', '${cdpd_log4j2_version}', pom.xml
+        REPLACE_38 = 'netty.version', '${cdpd_netty4_version}', pom.xml
+        REPLACE_39 = 'protobuf.version', '${cdpd_protobuf2_version}', pom.xml
+        REPLACE_40 = 're2j.version', '${cdpd_re2j_version}', pom.xml
+        REPLACE_41 = 'thrift.version', '${cdpd_thrift_version}', pom.xml
+
+[solr]
+COMPONENT = solr
+build_tool = ant
+IVY_MIRROR_PROP = ${NEXUS_PROXY_URL}
+M2_REPO_SUFFIX = ""
+BUILD_OPTS="-Dversion=${solr_jar_version} -Dslf4j.binding=slf4j-log4j12 -Dexclude.from.war=nothing -Divy.home=${HOME}/.ivy2 -Drepo.maven.org=${IVY_MIRROR_PROP} -Divy_bootstrap_url1=${IVY_MIRROR_PROP} -Divy_install_path=${HOME}/tools/ant/latest/lib -lib ${HOME}/tools/ant/latest/lib -Dreactor.repo=file://${HOME}/.m2/repository${M2_REPO_SUFFIX} -Dcauldron-gbn=${IVY_MIRROR_PROP}"
+
+        [[artifacts]]
+          cmd_1 = build/solr-${solr_jar_version}.tar.gz
+
+        [[install_cmd]]
+          cmd_1 = ant ${BUILD_OPTS} ivy-bootstrap
+          cmd_2 = mkdir -p "test-framework/lib"
+          cmd_3 = ant ${BUILD_OPTS} clean
+          cmd_4 = ant ${BUILD_OPTS} package-local-src-tgz , solr
+          cmd_5 = ant ${BUILD_OPTS} create-package , solr
+          cmd_6 = ant ${BUILD_OPTS} -Dcontrib-crawl.exclude=contrib/depends-sentry-libs/build.xml -Dmaven-deps.exclude="**/depends-sentry-libs/**" generate-maven-artifacts
+          cmd_7 = rm -rf build
+          cmd_8 = mkdir build
+          cmd_9 = tar --use-compress-program pigz -C build -xf ${COMPONENT}/build/${COMPONENT}-${solr_jar_version}-src.tgz
+          cmd_10 = tar --use-compress-program pigz -C build/${COMPONENT}-${solr_jar_version} --strip-components=1 -xf ${COMPONENT}/package/${COMPONENT}-${solr_jar_version}.tgz
+          cmd_11 = cp -rf cloudera build/${COMPONENT}-${solr_jar_version}
+          cmd_13 = tar --use-compress-program pigz -cf ${COMPONENT}-${solr_jar_version}.tar.gz ${COMPONENT}-${solr_jar_version} , build
+
+        [[fortify_cmd]]
+          cmd_0 = sourceanalyzer -b "${COMPONENT}-${solr_jar_version}" -clean
+          cmd_1 = sourceanalyzer -b "${COMPONENT}-${solr_jar_version}" -source 1.8 ant ${BUILD_OPTS} ivy-bootstrap
+          cmd_2 = mkdir -p "test-framework/lib"
+          cmd_3 = sourceanalyzer -b "${COMPONENT}-${solr_jar_version}" -source 1.8 ant ${BUILD_OPTS} clean
+          cmd_4 = sourceanalyzer -b "${COMPONENT}-${solr_jar_version}" -source 1.8 ant ${BUILD_OPTS} package-local-src-tgz , solr
+          cmd_5 = sourceanalyzer -b "${COMPONENT}-${solr_jar_version}" -source 1.8 ant ${BUILD_OPTS} create-package , solr
+          cmd_6 = sourceanalyzer -b "${COMPONENT}-${solr_jar_version}" -source 1.8 ant ${BUILD_OPTS} -Dcontrib-crawl.exclude=contrib/depends-sentry-libs/build.xml -Dmaven-deps.exclude="**/depends-sentry-libs/**" generate-maven-artifacts
+          cmd_7 = sourceanalyzer -b "${COMPONENT}-${solr_jar_version}" ${FORTIFY_SCAN_MEMORY} -scan -f "${COMPONENT}-${solr_jar_version}".fpr
+
+        [[text-replace]]
+          cmd_1 = 'gcs.version' , ${gcs_jar_version} , lucene/ivy-versions.properties , key_value
+          cmd_2 = 'org.apache.hadoop.version' , ${hadoop_jar_version} , lucene/ivy-versions.properties , key_value
+          cmd_3 = 'org.apache.knox.version', ${knox_jar_version} , lucene/ivy-versions.properties , key_value
+          cmd_4 = 'org.apache.zookeeper.version' , ${zookeeper_jar_version} , lucene/ivy-versions.properties , key_value
+          cmd_5 = 'releases.cloudera.com' , ${GBN_MVN_REPO} , lucene/ivy-versions.properties , key_value
+          cmd_6 = 'snapshots.cloudera.com', ${IVY_MIRROR_PROP} , lucene/ivy-versions.properties , key_value
+          cmd_7 = 'reactor.repo', ${IVY_MIRROR_PROP} , lucene/ivy-versions.properties , key_value
+          cmd_8 = 'org.eclipse.jetty.version', '${cdpd_jetty_version}', lucene/ivy-versions.properties , key_value
+          cmd_9 = 'property name="cauldron-gbn" value=".*" override', 'property name="cauldron-gbn" value="${GBN_MVN_REPO}" override', lucene/default-nested-ivy-settings.xml , regex_replace
+          cmd_10 = 'property name="cauldron.cloudera.com" value=".*" override', 'property name="cauldron.cloudera.com" value="${GBN_MVN_REPO}" override', lucene/default-nested-ivy-settings.xml , regex_replace
+          cmd_11 = 'property name="reactor.repo" value=".*" override', 'property name="reactor.repo" value="${IVY_MIRROR_PROP}" override', lucene/default-nested-ivy-settings.xml , regex_replace
+          cmd_12 = 'property name="snapshots.cloudera.com" value=".*" override', 'property name="snapshots.cloudera.com" value="${IVY_MIRROR_PROP}" override', lucene/default-nested-ivy-settings.xml , regex_replace
+          cmd_13 = 'property name="releases.cloudera.com" value=".*" override', 'property name="releases.cloudera.com" value="${GBN_MVN_REPO}" override', lucene/default-nested-ivy-settings.xml , regex_replace
+          cmd_14 = 'ibiblio name="sonatype-releases" root=".*" m2compatible', 'ibiblio name="sonatype-releases" root="${IVY_MIRROR_PROP}" m2compatible', lucene/default-nested-ivy-settings.xml , regex_replace
+          cmd_15 = 'ibiblio name="maven.restlet.org" root=".*" m2compatible', 'ibiblio name="maven.restlet.org" root="${IVY_MIRROR_PROP}" m2compatible', lucene/default-nested-ivy-settings.xml , regex_replace
+          cmd_16 = 'ibiblio name="cloudera" root=".*" m2compatible', 'ibiblio name="cloudera" root="${IVY_MIRROR_PROP}" m2compatible', lucene/default-nested-ivy-settings.xml , regex_replace
+          cmd_17 = 'ibiblio name="releases.cloudera.com" root=".*" m2compatible', 'ibiblio name="releases.cloudera.com" root="${GBN_MVN_REPO}" m2compatible', lucene/default-nested-ivy-settings.xml , regex_replace
+          cmd_18 = 'ibiblio name="working-chinese-mirror" root=".*" m2compatible', 'ibiblio name="working-chinese-mirror" root="${IVY_MIRROR_PROP}" m2compatible', lucene/default-nested-ivy-settings.xml , regex_replace
+          cmd_19 = 'property name="ivy_bootstrap_url1" value=".*"', 'property name="ivy_bootstrap_url1" value="${IVY_MIRROR_PROP}"', lucene/common-build.xml , regex_replace
+          cmd_20 = 'property name="ivy_bootstrap_url2" value=".*"', 'property name="ivy_bootstrap_url2" value="${IVY_MIRROR_PROP}"', lucene/common-build.xml , regex_replace
+          cmd_21 = 'io.netty.netty.version', ${cdpd_netty4_version}, lucene/ivy-versions.properties , key_value
+          cmd_22 = 'org.apache.kerby.version', ${cdpd_kerby_version}, lucene/ivy-versions.properties , key_value
+          cmd_23 = '/commons-cli/commons-cli', 1.2, lucene/ivy-versions.properties , key_value
+          cmd_24 = '/commons-codec/commons-codec', ${cdpd_commons-codec_version}, lucene/ivy-versions.properties , key_value
+          cmd_25 = '/commons-collections/commons-collections', ${cdpd_commons-collections_version}, lucene/ivy-versions.properties , key_value
+          cmd_26 = '/commons-io/commons-io', ${cdpd_commons-io_version}, lucene/ivy-versions.properties , key_value
+          cmd_27 = '/org.apache.commons/commons-lang3', ${cdpd_commons-lang3_version}, lucene/ivy-versions.properties , key_value
+          cmd_28 = 'org.apache.curator.version', ${curator_jar_version}, lucene/ivy-versions.properties , key_value
+          cmd_29 = '/org.apache.httpcomponents/httpclient', ${cdpd_httpclient_version}, lucene/ivy-versions.properties , key_value
+          cmd_30 = '/org.apache.httpcomponents/httpcore', ${cdpd_httpcore_version}, lucene/ivy-versions.properties , key_value
+          cmd_31 = 'org.codehaus.jackson.version', ${cdpd_jackson_version}, lucene/ivy-versions.properties , key_value
+          cmd_32 = 'org.apache.logging.log4j.version', ${cdpd_log4j2_version}, lucene/ivy-versions.properties , key_value
+          cmd_33 = '/com.google.re2j/re2j', ${cdpd_re2j_version}, lucene/ivy-versions.properties , key_value
+          cmd_34 = 'org.apache.ranger.version' , ${ranger_jar_version} , lucene/ivy-versions.properties , key_value
+          cmd_35 = 'org.apache.calcite.avatica.version' , ${avatica_jar_version} , lucene/ivy-versions.properties , key_value
+          cmd_36 = 'org.apache.calcite.version' , ${calcite_jar_version} , lucene/ivy-versions.properties , key_value
+
+    [[test_cmd]]
+        cmd_1 = ant ${BUILD_OPTS} ivy-bootstrap resolve
+        cmd_2 = ant ${BUILD_OPTS} clean test -Dtests.badapples=false -Dtests.jvms.override=2
+
+[spark]
+build_tool = maven
+AMPLAB_JENKINS = 1
+BUILD_SPARK_SETVERSION_OPTS = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${spark_jar_version} -DgenerateBackupPoms=false
+COMMON_BUILD_OPTS = "-B -Dcdpd.build=true -Psparkr -Drepo.id=${NEXUS_DEPLOY_REPO_ID} -Dinternal.maven.repo=${NEXUS_REPO_URL} -Dsurefire.timeout=9600 ${MAVEN_TEST_OPTS} -Dskip ${NPM_ARGS}"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${spark_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} package deploy -DskipTests -Dskip
+package_count = 5
+coverage_tool = cobertura
+
+   [[PASSTHROUGH_ENV]]
+        HADOOP_VERSION=${hadoop_jar_version}
+        SPARK_VERSION=${spark_jar_version}
+
+    [[artifacts]]
+        artifact_1 = spark-${spark_jar_version}-bin-${hadoop_jar_version}.tgz
+
+    [[install_cmd]]
+        cmd_1 = dev/make-distribution.sh --tgz ${COMMON_BUILD_OPTS} -Dskip=true
+
+    [[fortify_cmd]]
+        cmd_1 = dev/make-distribution.sh --tgz ${COMMON_BUILD_OPTS} -Dskip=true
+        cmd_2 = build/mvn ${COMMON_BUILD_OPTS} -DskipTests -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=spark-${spark_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = build/mvn ${COMMON_BUILD_OPTS} -DskipTests -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=spark-${spark_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b spark-${spark_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f spark-${spark_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = ${MVN_CMD} ${COMMON_BUILD_OPTS} -fae test
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${MVN_CMD} ${COMMON_BUILD_OPTS} -fae cobertura:cobertura
+
+    [[xml-replace]]
+        REPLACE_2 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_3 = 'hbase.version', ${hbase_jar_version}, pom.xml
+        REPLACE_4 = 'protobuf.version', ${protobuf_version}, pom.xml
+        REPLACE_5 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_7 = 'hive.version', ${hive_jar_version}, pom.xml
+        REPLACE_8 = 'parquet.version', ${parquet_jar_version}, pom.xml
+        REPLACE_9 = 'orc.version', ${orc_jar_version}, pom.xml
+        REPLACE_10 = 'avro.version', ${avro_jar_version}, pom.xml
+        # Common 3rd party dependencies coming from external_versions.ini
+        #REPLACE_11 = 'commons-codec.version', ${cdpd_commons-codec_version}, pom.xml
+        REPLACE_12 = 'commons.collections.version', ${cdpd_commons-collections_version}, pom.xml
+        REPLACE_13 = 'curator.version', ${curator_jar_version}, pom.xml
+        REPLACE_14 = 'commons.httpclient.version', ${cdpd_httpclient_version}, pom.xml
+        REPLACE_15 = 'commons.httpcore.version', ${cdpd_httpcore_version}, pom.xml
+        REPLACE_16 = 'codehaus.jackson.version', ${cdpd_jackson_version}, pom.xml
+        REPLACE_17 = 'jetty.version', ${cdpd_jetty_version}, pom.xml
+        REPLACE_18 = 'log4j.version', ${cdpd_log4j_version}, pom.xml
+        REPLACE_19 = 'protobuf.version', ${cdpd_protobuf2_version}, pom.xml
+        REPLACE_20 = 'libthrift.version', 0.12.0, pom.xml
+        REPLACE_21 = '*[artifactId='commons-beanutils']/version', ${cdpd_commons-beanutils_version}, pom.xml
+        REPLACE_22 = 'tez.version', ${tez_jar_version}, pom.xml
+        REPLACE_23 = 'ranger.version', ${ranger_jar_version}, pom.xml
+
+[spark_acid]
+build_tool = sbt
+COMMON_BUILD_OPTS = "-Dversion=${spark_acid_jar_version} -Dspark.version=${spark_jar_version} -Dhadoop.version=${hadoop_jar_version} -Dhive.version=${hive_jar_version} -Dtez.version=${tez_jar_version} -Dorc.version=${orc_jar_version} -Drepourl=${NEXUS_PROXY_URL} -Dhive.repo=${NEXUS_PROXY_URL} -Dgbnurl=${GBN_MVN_REPO} -Dthrift.version=0.9.3-1 ${NPM_ARGS}"
+
+    [[artifacts]]
+        artifact_1 = target/scala-2.11/spark-acid-assembly-${spark_acid_jar_version}.jar
+
+    [[install_cmd]]
+        cmd_1 = ../build/sbt clean publishLocal publishM2 ${COMMON_BUILD_OPTS} , shaded-dependencies
+        cmd_2 = ./build/sbt clean assembly publishLocal publishM2 ${COMMON_BUILD_OPTS}
+
+    [[text-replace]]
+        REPLACE_1 = 'version in ThisBuild :=.*', 'version in ThisBuild := "${spark_acid_jar_version}"', version.sbt, regex_replace
+
+[spark-solr]
+build_tool = maven
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} clean install -DskipTests
+
+    [[test_cmd]]
+        cmd_1 = ${MVN_CMD} -Dmaven.test.failure.ignore=true --fail-at-end clean test
+
+    [[xml-replace]]
+        REPLACE_0 = 'spark-solr.version', ${spark-solr_jar_version}, pom.xml
+        REPLACE_1 = 'spark.version', ${spark_jar_version}, pom.xml
+        REPLACE_2 = 'solr.version', ${solr_jar_version}, pom.xml
+        REPLACE_3 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        # Third party dependencies
+        REPLACE_4 = 'commons-cli.version', ${cdpd_commons-cli_version}, pom.xml
+        REPLACE_5 = 'commons-io.version', ${cdpd_commons-io_version}, pom.xml
+        REPLACE_6 = 'commons-lang3.version', ${cdpd_commons-lang3_version}, pom.xml
+        REPLACE_7 = 'commons-compress.version', ${cdpd_commons-compress_version}, pom.xml
+        REPLACE_8 = 'commons-logging.version', ${cdpd_commons-logging_version}, pom.xml
+        REPLACE_9 = 'commons-beanutils.version', ${cdpd_commons-beanutils_version}, pom.xml
+        REPLACE_10 = 'commons-pool.version', ${cdpd_commons-pool_version}, pom.xml
+        REPLACE_11 = 'kyro-shaded.version', ${cdpd_kryo3_version}, pom.xml
+        REPLACE_12 = 'netty3.version', ${cdpd_netty3_version}, pom.xml
+        REPLACE_13 = 'netty4.version', ${cdpd_netty4_version}, pom.xml
+        REPLACE_14 = 'jersey-core.version', ${cdpd_jersey_version}, pom.xml
+        REPLACE_15 = 'joda-time.version', ${cdpd_joda-time_version}, pom.xml
+        REPLACE_16 = 'thrift.version', ${cdpd_thrift_version}, pom.xml
+
+[sqoop]
+build_tool = ant
+COMMON_BUILD_OPTS = "${ANT_CMD} -Dmvn.version=2.1.3 -Dprev.git.hash=HEAD -Dtest.junit.output.format=xml -Dmvn.repo=${NEXUS_DEPLOY_REPO_ID} -Dmvn.repo.id=${NEXUS_DEPLOY_REPO_ID} -Dmvn.deploy.url=${GBN_MVN_REPO} -Drepo.maven.org=${GBN_MVN_REPO} -Dsnapshot.apache.org=${NEXUS_PROXY_URL} -Dstaging.cloudera.com=${NEXUS_PROXY_URL} -Dreleases.cloudera.com=${NEXUS_PROXY_URL} ${NPM_ARGS}"
+deploy_cmd = ${COMMON_BUILD_OPTS} clean mvn-install mvn-deploy tar
+package_count = 3
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = build/sqoop-${sqoop_jar_version}.bin__hadoop-${hadoop_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean mvn-install tar -Dmaven.javadoc.skip=true
+
+    [[fortify_cmd]]
+        cmd_1 = sourceanalyzer -b sqoop-${sqoop_jar_version} ${FORTIFY_SCAN_MEMORY} -verbose ${COMMON_BUILD_OPTS} clean mvn-install tar -Dmaven.javadoc.skip=true
+        cmd_2 = sourceanalyzer -b sqoop-${sqoop_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f sqoop-${sqoop_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean test tar -Dmvn.version=2.1.3
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean cobertura:cobertura tar -Dmvn.version=2.1.3
+
+    [[text-replace]]
+        REPLACE_1 = 'version' , ${sqoop_jar_version} , ivy/libraries.properties , key_value
+        REPLACE_2 = 'zookeeper.version' , ${zookeeper_jar_version} , ivy/libraries.properties , key_value
+        REPLACE_3 = 'hadoop.version' , ${hadoop_jar_version} , ivy/libraries.properties , key_value
+        REPLACE_4 = 'hbase.version' , ${hbase_jar_version} , ivy/libraries.properties , key_value
+        REPLACE_5 = 'hcatalog.version' , ${hive_jar_version} , ivy/libraries.properties , key_value
+        REPLACE_6 = 'accumulo.version' , ${accumulo_jar_version} , ivy/libraries.properties , key_value
+        REPLACE_7 = 'orc.version' , ${orc_jar_version} , ivy/libraries.properties , key_value
+        REPLACE_8 = 'avro.version' , ${avro_jar_version} , ivy/libraries.properties , key_value
+        REPLACE_9 = 'parquet.version' , ${parquet_jar_version} , ivy/libraries.properties , key_value
+        REPLACE_10 = 'calcite.version', ${calcite_jar_version}, ivy/libraries.properties , key_value
+
+        REPLACE_11 = 'commons-cli.version', ${cdpd_commons-cli_version}, ivy/libraries.properties , key_value
+        REPLACE_12 = 'commons-codec.version', ${cdpd_commons-codec_version}, ivy/libraries.properties , key_value
+        REPLACE_13 = 'commons-collections.version', ${cdpd_commons-collections_version}, ivy/libraries.properties , key_value
+        REPLACE_14 = 'commons-io.version', ${cdpd_commons-io_version}, ivy/libraries.properties , key_value
+        REPLACE_15 = 'commons-lang.version', ${cdpd_commons-lang_version}, ivy/libraries.properties , key_value
+        REPLACE_16 = 'commons-lang3.version', ${cdpd_commons-lang3_version}, ivy/libraries.properties , key_value
+        REPLACE_17 = 'commons-logging.version', ${cdpd_commons-logging_version}, ivy/libraries.properties , key_value
+        REPLACE_18 = 'commons-net.version', ${cdpd_commons-net_version}, ivy/libraries.properties , key_value
+        REPLACE_19 = 'commons-pool.version', ${cdpd_commons-pool_version}, ivy/libraries.properties , key_value
+        REPLACE_20 = 'jackson-databind.version', 2.10.0, ivy/libraries.properties , key_value
+        REPLACE_21 = 'jersey.version', ${cdpd_jersey_version}, ivy/libraries.properties , key_value
+        REPLACE_22 = 'jetty.version', ${cdpd_jetty_version}, ivy/libraries.properties , key_value
+        REPLACE_23 = 'junit.version', ${cdpd_junit4_version}, ivy/libraries.properties , key_value
+        REPLACE_24 = 'log4j.version', ${cdpd_log4j_version}, ivy/libraries.properties , key_value
+        REPLACE_25 = 'log4j-2.version', 2.11.2, ivy/libraries.properties , key_value
+        REPLACE_26 = 'kryo.version', ${cdpd_kryo3_version}, ivy/libraries.properties , key_value
+        REPLACE_27 = 'mockito-all.version', 1.9.5, ivy/libraries.properties , key_value
+        REPLACE_28 = 'slf4j.version', ${cdpd_slf4j_version}, ivy/libraries.properties , key_value
+
+[spark_atlas_connector]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${spark_atlas_connector_jar_version}
+
+    [[artifacts]]
+        artifact_1 = spark-atlas-connector-assembly/target/spark-atlas-connector-assembly-${spark_atlas_connector_jar_version}.jar
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} clean install -DskipTests
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_CMD} -DskipTests clean install
+        cmd_2 = ${MVN_CMD} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=spark-atlas-connector-assembly-${spark_atlas_connector_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${MVN_CMD} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=spark-atlas-connector-assembly-${spark_atlas_connector_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b spark-atlas-connector-assembly-${spark_atlas_connector_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f spark-atlas-connector-assembly-${spark_atlas_connector_jar_version}.fpr
+
+    [[xml-replace]]
+        REPLACE_1 = 'spark.version', ${spark_jar_version}, pom.xml
+        REPLACE_2 = 'atlas.version', ${atlas_jar_version}, pom.xml
+
+[spark_schema_registry]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${spark_schema_registry_jar_version}
+
+    [[artifacts]]
+        artifact_1 = assembly/target/hortonworks-spark-schema-registry-${spark_schema_registry_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} clean install -DskipTests ${NPM_ARGS}
+
+    [[fortify_cmd]]
+        cmd_1 = ${MVN_CMD} -DskipTests clean install ${NPM_ARGS}
+        cmd_2 = ${MVN_CMD} -DskipTests ${NPM_ARGS} ${FORTIFY_ARGS} -Dfortify.sca.buildId=hortonworks-spark-schema-registry-${spark_schema_registry_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${MVN_CMD} -DskipTests ${NPM_ARGS} ${FORTIFY_ARGS} -Dfortify.sca.buildId=hortonworks-spark-schema-registry-${spark_schema_registry_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b hortonworks-spark-schema-registry-${spark_schema_registry_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f hortonworks-spark-schema-registry-${spark_schema_registry_jar_version}.fpr
+
+    [[xml-replace]]
+        REPLACE_1 = 'spark.version', ${spark_jar_version}, pom.xml
+        REPLACE_2 = 'schema.registry.version', ${schemaregistry_jar_version}, pom.xml
+
+[streams_messaging_manager]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${streams_messaging_manager_jar_version}
+COMMON_BUILD_OPTS = "${MVN_CMD} -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL} -Dreponame=${NEXUS_DEPLOY_REPO_ID} ${NPM_ARGS}"
+
+    [[artifacts]]
+        artifact_1 = dist/target/streams-messaging-manager-${streams_messaging_manager_jar_version}.zip
+        artifact_2 = dist/target/streams-messaging-manager-${streams_messaging_manager_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -B clean install -DskipTests=true
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -DskipTests clean install
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=streams-messaging-manager-${streams_messaging_manager_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=streams-messaging-manager-${streams_messaging_manager_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b streams-messaging-manager-${streams_messaging_manager_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f streams-messaging-manager-${streams_messaging_manager_jar_version}.fpr
+
+    [[xml-replace]]
+        REPLACE_1 = 'schema-registry.version' , ${schemaregistry_jar_version} , pom.xml
+        REPLACE_2 = 'kafka.version' , ${kafka_jar_version} , pom.xml
+        REPLACE_3 = 'avro.version' , ${avro_jar_version} , pom.xml
+        REPLACE_4 = 'hadoop.version' , ${hadoop_jar_version} , pom.xml
+        REPLACE_5 = 'ranger.version' , ${ranger_jar_version} , pom.xml
+        REPLACE_6 = 'httpclient.version', ${cdpd_httpclient_version}, pom.xml
+
+[streams_messaging_manager_ui]
+build_tool = npm
+
+    [[artifacts]]
+        artifact_1 = streams_messaging_manager_ui-${streams_messaging_manager_ui_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = bash -c "echo 'MODE="standalone"' > .env"
+        cmd_2 = npm install
+        cmd_3 = npm run build
+        cmd_4 = npm run build-standalone-server
+        cmd_5 = npm install node@lts --prefix nodejs
+        cmd_6 = npm install forever --prefix nodejs/node_modules/node
+        cmd_7 = mv nodejs/node_modules/node prod-server/dist/
+        cmd_8 = tar -C prod-server/dist -czvf streams_messaging_manager_ui-${streams_messaging_manager_ui_jar_version}.tar.gz .
+
+[streams_replication_manager]
+buid_tool = gradle
+
+    [[install_cmd]]
+         cmd_1 = ./gradlew build
+
+    [[artifacts]]
+        artifact_1 = build/distributions/streams-replication-manager-${streams_replication_manager_jar_version}.tgz
+        artifact_2 = build/distributions/streams-replication-manager-${streams_replication_manager_jar_version}.zip
+
+    [[text-replace]]
+        replace_1 = 'version', "${streams_replication_manager_jar_version}", gradle.properties, key_value
+        replace_2 = 'apacheVersion', "${streams_replication_manager_apache_version}", gradle.properties, key_value
+        replace_3 = 'stackVersion', "${STACKVERSION}", gradle.properties, key_value
+        replace_4 = 'buildNumber', "${BUILDNUMBER}", gradle.properties, key_value
+        replace_5 = 'kafkaVersion', "${kafka_jar_version}", gradle.properties, key_value
+        replace_6 = 'mavenUrl', ${NEXUS_PROXY_URL}, gradle.properties, key_value
+        replace_7 = 'gbnUrl', ${GBN_MVN_REPO}, gradle.properties, key_value
+
+[cruise_control]
+buid_tool = gradle
+cruise_control_scala_version=2.12
+
+    [[install_cmd]]
+         cmd_1 = ./gradlew distTar -PscalaVersion=${cruise_control_scala_version}
+
+    [[artifacts]]
+        artifact_1 = build/distributions/CRUISE_CONTROL_${cruise_control_scala_version}-${cruise_control_jar_version}.tgz
+
+    [[text-replace]]
+        replace_1 = 'mavenUrl', ${NEXUS_PROXY_URL}, gradle.properties, key_value
+        replace_2 = 'gbnUrl', ${GBN_MVN_REPO}, gradle.properties, key_value
+        replace_3 = 'cdpProjectVersion', ${cruise_control_jar_version}, gradle.properties, key_value
+        replace_4 = 'zookeeperVersion', ${zookeeper_jar_version}, gradle.properties, key_value
+        replace_5 = 'kafkaVersion', ${kafka_jar_version}, gradle.properties, key_value
+
+[hive_warehouse_connector]
+build_tool = sbt
+COMMON_OPTS = "-DskipTests -Dversion=${hive_warehouse_connector_jar_version} -Dspark.version=${spark_jar_version} -Dhadoop.version=${hadoop_jar_version} -Dhive.version=${hive_jar_version} -Dtez.version=${tez_jar_version} -Drepourl=${NEXUS_PROXY_URL} -Dgbnurl=${GBN_MVN_REPO} -Dspark.acid.version=${spark_acid_jar_version} ${NPM_ARGS}"
+
+    [[artifacts]]
+        artifact_1 = target/scala-2.11/hive-warehouse-connector-assembly-${hive_warehouse_connector_jar_version}.jar
+        artifact_2 = target/pyspark_hwc-${hive_warehouse_connector_jar_version}.zip
+
+    [[install_cmd]]
+        cmd_1 = ./build/sbt compile ${COMMON_OPTS}
+        cmd_2 = ./build/sbt  assembly ${COMMON_OPTS}
+        cmd_3 = ./build/sbt  publishM2 ${COMMON_OPTS}
+
+    [[text-replace]]
+        REPLACE_1 = 'version :=.*', 'version := "${hive_warehouse_connector_jar_version}"', build.sbt, regex_replace
+        REPLACE_2 = 'https://dl.bintray.com/typesafe/ivy-releases', 'https://dl.bintray.com/typesafe/ivy-releases', build/sbt-launch-lib.bash, regex_replace
+
+[superset]
+build_tool = npm
+node_version = 10.16.0
+N_PREFIX = ${HOME}/tools/n
+PATH=${N_PREFIX}/n/versions/node/${node_version}/bin:${PATH}
+
+    [[artifacts]]
+        artifact_1 = superset-${superset_apache_version}-py3-none-linux_x86_64.wgn
+
+    [[download_modules]]
+        cmd_1 = ${cdh_S3_DEV_LOC}/tars/pydruid/pydruid-${pydruid_apache_version}-py2.py3-none-any.whl, ${SOURCE_ROOT}/superset/pydruid-${pydruid_apache_version}-py2.py3-none-any.whl
+
+    [[install_cmd]]
+        cmd_1 = npm install n , superset/assets
+        cmd_2 = bash -c "N_PREFIX=${N_PREFIX} node_modules/n/bin/n -q ${node_version}" , superset/assets
+        cmd_3 = ${N_PREFIX}/n/versions/node/${node_version}/bin/npm ci , superset/assets
+        cmd_4 = ${N_PREFIX}/n/versions/node/${node_version}/bin/npm run build , superset/assets
+        cmd_5 = rm -rf node_modules , superset/assets
+        cmd_6 = ${BASE_DIR}/buildvenv/bin/python setup.py bdist_wheel
+        cmd_7 = ${BASE_DIR}/buildvenv/bin/pip download -d wheels -r requirements.txt
+        cmd_8 = bash -c "PKGNAME=dist/apache_superset-${superset_apache_version}-py3-none-any.whl ; cp -f $PKGNAME wheels"
+        cmd_9 = tar -zcvf superset-${superset_apache_version}-py3-none-linux_x86_64.wgn wheels
+        # Uncomment below routine during cldr pydruid integration - ToDo.
+        #cmd_10 = rm -rf TMP_DIR
+        #cmd_11 = mkdir TMP_DIR
+        #cmd_12 = tar -C TMP_DIR -zxvf superset-${superset_apache_version}-py3-none-linux_x86_64.wgn
+        #cmd_13 = rm -vf TMP_DIR/wheels/pydruid-${pydruid_apache_version}-py2.py3-none-any.whl
+        #cmd_14 = cp -vf pydruid-${pydruid_apache_version}-py2.py3-none-any.whl TMP_DIR/wheels/
+        #cmd_15 = tar -zcvf superset-${superset_apache_version}-py3-none-linux_x86_64.wgn wheels/ , TMP_DIR
+        #cmd_16 = rm -f superset-${superset_apache_version}-py3-none-linux_x86_64.wgn
+
+    [[test_cmd]]
+        cmd_1 = tox -e py3
+
+[qe-examples]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${qe-examples_jar_version}
+deploy_cmd = ${MVN_CMD} package deploy -DskipTests -Dskip
+
+    [[artifacts]]
+        artifact_1 = spark2-examples-assembly/target/scala-2.11/jars/spark2-examples-assembly-${spark_jar_version}.jar
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} install -DskipITs -DskipTests -Dmaven.javadoc.skip=true -Dskip=true -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Dreponame=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL}
+
+    [[test_cmd]]
+        cmd_1 = ${MVN_CMD} -fae test
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_2 = 'hbase.version', ${hbase_jar_version}, pom.xml
+        REPLACE_3 = 'protobuf.version', ${protobuf_version}, pom.xml
+        REPLACE_4 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_5 = 'kafka.version', ${kafka_jar_version}, pom.xml
+        REPLACE_6 = 'calcite.version', ${calcite_jar_version}, pom.xml
+        REPLACE_7 = 'spark.version', ${spark_jar_version}, pom.xml
+
+[qm-parcel]
+build_tool = maven
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${qm-parcel_jar_version}
+deploy_cmd = ${MVN_CMD} package deploy -DskipTests -Dskip
+
+    [[artifacts]]
+        artifact_1 = dist/target/parcel-${computex_cpx_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${MVN_CMD} install -DskipITs -DskipTests
+
+    [[test_cmd]]
+        cmd_1 = ${MVN_CMD} -fae test
+
+    [[xml-replace]]
+        REPLACE_1 = 'computex.version', ${computex_cpx_jar_version}, pom.xml
+        REPLACE_2 = 'cdp.version', ${hadoop_lkgb_jar_version}, pom.xml
+
+# TODO (sriharsha) figure out spark version from pom.xml , BUG-58027 cached apache archive tar to s3.
+# https://github.com/hortonworks/build-support/commit/6a258920f96f89aa7bec590734db69cf878c42a9
+[zeppelin]
+build_tool = maven
+COMMON_BUILD_OPTS = ${MVN_CMD} ${NPM_ARGS} -Divy.home=${HOME}/.ivy2 -Dsbt.ivy.home=${HOME}/.ivy2 -Duser.home=${HOME} -Drepo.maven.org=${NEXUS_REPO_URL} -DaltDeploymentRepository=${NEXUS_DEPLOY_REPO_ID}::default::${NEXUS_REPO_URL} -Dreactor.repo='file://${HOME}/.m2/repository' -Dspark.version=${spark_jar_version} -Dhadoop.version=${hadoop_jar_version} -Pyarn -Pbuild-distr -Drat.skip=True -Pjdbc-hive -Pjdbc-phoenix -Pjdbc-hadoop3
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${zeppelin_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} deploy -DskipTests
+coverage_tool = cobertura
+
+    [[artifacts]]
+      artifact_1 = zeppelin-distribution/target/zeppelin-${zeppelin_jar_version}.tar.gz
+
+    [[install_cmd]]
+      cmd_1 = ${COMMON_BUILD_OPTS} install -DskipTests
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install -DskipTests
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests -DskipITs ${FORTIFY_ARGS} -Dfortify.sca.buildId=zeppelin-${zeppelin_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests -DskipITs ${FORTIFY_ARGS} -Dfortify.sca.buildId=zeppelin-${zeppelin_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b zeppelin-${zeppelin_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f zeppelin-${zeppelin_jar_version}.fpr
+
+    [[xml-replace]]
+      REPLACE_1 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+      REPLACE_2 = 'hbase.hadoop.version', ${hadoop_jar_version}, pom.xml
+      REPLACE_3 = 'hadoop-common.version', ${hadoop_jar_version}, pom.xml
+      REPLACE_4 = 'hbase.version', ${hbase_jar_version}, pom.xml
+      REPLACE_5 = 'hbase.hbase.version', ${hbase_jar_version}, pom.xml
+      REPLACE_6 = 'spark.version', ${spark_jar_version}, pom.xml
+      REPLACE_7 = 'protobuf.version', ${protobuf_version}, pom.xml
+      REPLACE_8 = 'zookeeper.version' , ${zookeeper_jar_version} , pom.xml
+      REPLACE_10 = 'hive.version', ${hive_jar_version}, jdbc/pom.xml
+      REPLACE_11 = 'phoenix.version', ${phoenix_jar_version}, pom.xml
+      REPLACE_12 = 'hive2.version', ${hive_jar_version}, jdbc/pom.xml
+      REPLACE_13 = 'gcs.version' , ${gcs_jar_version} , zeppelin-zengine/pom.xml
+
+      REPLACE_14 = 'jetty.version' , ${cdpd_jetty_version} , pom.xml
+
+    [[test_cmd]]
+      cmd_1 = ${MVN_CMD} -Drat.skip=true -DfailIfNoTests=false -fae test
+
+    [[test_coverage_cmd]]
+      cmd_1 = ${MVN_CMD} -Drat.skip=true -DfailIfNoTests=false -fae cobertura:cobertura
+
+[tez]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} clean ${MAVEN_TEST_OPTS} -Dtar -pl \!tez-ui -Pgpg -Paws -Pazure -Pozone -Pgcs -Phadoop28 -Psources -Dhadoop.version=${hadoop_jar_version} -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Dreponame=${NEXUS_DEPLOY_REPO_ID} -Dinternal.maven.repository=${NEXUS_REPO_URL} -DdistMgmtStagingId=${NEXUS_DEPLOY_REPO_ID} -DdistMgmtStagingUrl=${NEXUS_REPO_URL} ${NPM_ARGS}"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${tez_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} deploy
+package_count = 2
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = tez-dist/target/tez-${tez_jar_version}-minimal.tar.gz
+        artifact_2 = tez-dist/target/tez-${tez_jar_version}.tar.gz
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install -DskipTests
+
+    [[fortify_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} -DskipITs -DskipTests install"
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests -DskipITs -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=tez-${tez_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests -DskipITs -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=tez-${tez_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b tez-${tez_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f tez-${tez_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = npm set strict-ssl false ; ${MVN_CMD} test
+
+    [[test_coverage_cmd]]
+        cmd_1 = npm set strict-ssl false ; ${MVN_CMD} cobertura:cobertura
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version', ${hadoop_jar_version}, pom.xml
+        REPLACE_2 = 'zookeeper.version', ${zookeeper_jar_version}, pom.xml
+        REPLACE_3 = 'gcs.version' , ${gcs_jar_version} , pom.xml
+        REPLACE_4 = 'ozone.version' , ${ozone_jar_version} , pom.xml
+        REPLACE_5 = 'curator.version' , ${curator_jar_version} , pom.xml
+
+
+[t9000_core]
+build_tool = maven
+COMMON_BUILD_OPTS = "${MVN_CMD} clean ${MAVEN_TEST_OPTS}"
+setversion_cmd = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${t9000_core_jar_version}
+deploy_cmd = ${COMMON_BUILD_OPTS} deploy
+package_count = 2
+coverage_tool = cobertura
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} install -DskipTests
+
+    [[fortify_cmd]]
+        cmd_1 = "${COMMON_BUILD_OPTS} -DskipITs -DskipTests install"
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests -DskipITs -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=t9000-core-${t9000_core_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests -DskipITs -Dmaven.javadoc.skip=true ${FORTIFY_ARGS} -Dfortify.sca.buildId=t9000-core-${t9000_core_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b t9000-core-${t9000_core_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f t9000-core-${t9000_core_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = ${MVN_CMD} test
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${MVN_CMD} cobertura:cobertura
+
+    [[xml-replace]]
+        REPLACE_1 = 'hadoop.version', ${hadoop_lkgb_jar_version}, hadoop-yarn-cloud-project/hadoop-yarn-cloud-resourcemanager/pom.xml
+
+[zookeeper]
+build_tool = maven
+COMMON_BUILD_OPTS ="${MVN_CMD} -Drepoid=${NEXUS_DEPLOY_REPO_ID} -Dreponame=${NEXUS_DEPLOY_REPO_ID} -Drepourl=${NEXUS_REPO_URL} -Drepo.maven.org=${NEXUS_PROXY_URL} ${NPM_ARGS}"
+deploy_cmd = "${COMMON_BUILD_OPTS} deploy -DskipTests"
+package_count = 3
+coverage_tool = cobertura
+
+    [[artifacts]]
+        artifact_1 = zookeeper-assembly/target/apache-zookeeper-${zookeeper_jar_version}.tar.gz
+        artifact_2 = zookeeper-assembly/target/apache-zookeeper-${zookeeper_jar_version}-bin.tar.gz
+        artifact_3 = zookeeper-assembly/target/apache-zookeeper-${zookeeper_jar_version}-lib.tar.gz
+
+    [[setversion_cmd]]
+        cmd_1 = ${MVN_CMD} ${MVN_SET_VERSION_CMD} -DnewVersion=${zookeeper_jar_version} -P full-build
+
+    [[install_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean install -DskipTests -P full-build
+
+    [[fortify_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean install -DskipTests
+        cmd_2 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=zookeeper-${zookeeper_jar_version} ${FORTIFY_CLEAN_CMD}
+        cmd_3 = ${COMMON_BUILD_OPTS} -DskipTests ${FORTIFY_ARGS} -Dfortify.sca.buildId=zookeeper-${zookeeper_jar_version} ${FORTIFY_TRANSLATE_CMD}
+        cmd_4 = sourceanalyzer -b zookeeper-${zookeeper_jar_version} ${FORTIFY_SCAN_MEMORY} -scan -f zookeeper-${zookeeper_jar_version}.fpr
+
+    [[test_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} -Dsurefire.rerunFailingTestsCount=2 -DfailIfNoTests=false -fae test
+
+    [[test_coverage_cmd]]
+        cmd_1 = ${COMMON_BUILD_OPTS} clean cobertura:cobertura
+
+    [[xml-replace]]
+        REPLACE_1 = 'commons-cli.version', ${cdpd_commons-cli_version}, pom.xml
+        REPLACE_2 = 'commons-collections.version', ${cdpd_commons-collections_version}, pom.xml
+        REPLACE_3 = 'jackson.version', ${cdpd_jackson2-databind_version}, pom.xml
+        REPLACE_4 = 'jetty.version', ${cdpd_jetty_version}, pom.xml
+        REPLACE_5 = 'jline.version', ${cdpd_jline_version}, pom.xml
+        REPLACE_6 = 'kerby.version', ${cdpd_kerby_version}, pom.xml
+        REPLACE_7 = 'junit.version', ${cdpd_junit4_version}, pom.xml
+        REPLACE_8 = 'log4j.version', ${cdpd_log4j_version}, pom.xml
+        REPLACE_9 = 'mockito.version', ${cdpd_mockito_version}, pom.xml
+        REPLACE_10 = 'netty.version', ${cdpd_netty4_version}, pom.xml
+        REPLACE_11 = 'slf4j.version', ${cdpd_slf4j_version}, pom.xml
