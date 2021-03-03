@@ -96,12 +96,19 @@ addSwap() {
          echo "Pushing swap to $worker"
          ssh -i ~/.ssh/hw-re-keypair.pem root@${worker} \
 	"test -f /swapfile || rm -f /swapfile ; \
+	   # centos7.7
+    	 fallocate -l 1G /swapfile
+	
          dd if=/dev/zero of=/swapfile count=4096 bs=2MiB ; \
+	 
          chmod 600 /swapfile ; \
          mkswap /swapfile ; \
          swapon /swapfile ; "
          echo -e '/swapfile\t\tswap\t\t\tswap\tdefaults\t0 0' >> /etc/fstab;"
     done
+    
+  
+ 
 }
 
 cleanHome(){
